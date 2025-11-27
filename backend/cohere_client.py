@@ -1,0 +1,35 @@
+import os
+import logging
+import cohere
+
+logger = logging.getLogger(__name__)
+
+class CohereClient:
+    def __init__(self):
+        self.api_key = os.getenv("COHERE_API_KEY")
+        
+        if not self.api_key:
+            logger.warning("COHERE_API_KEY not found in environment")
+            self.client = None
+        else:
+            self.client = cohere.Client(self.api_key)
+
+    async def chat_with_context(self, query: str, context: str) -> str:
+        if not self.client:
+            return "Cohere client not initialized."
+
+        try:
+            # Cohere's Chat API
+            response = self.client.chat(
+                model="command-a-vision-07-2025",
+                message=query,
+                preamble="You are a helpful AI assistant. Answer the user's question based on the provided context.",
+                documents=[{"text": context[:4000]}], # Cohere RAG style
+                temperature=0.7
+            )
+            return response.text
+        except Exception as e:
+            logger.error(f"Cohere API Error: {e}")
+            return f"Cohere Error: {str(e)}"
+
+cohere_client = CohereClient()

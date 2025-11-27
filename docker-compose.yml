@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  ai-second-brain:
+    build: .
+    ports:
+      - "5300:5300"
+    environment:
+      - QDRANT_URL=${QDRANT_URL}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - LAMATIC_API_KEY=${LAMATIC_API_KEY}
+      - LAMATIC_WORKFLOW_ID=${LAMATIC_WORKFLOW_ID}
+      - LAMATIC_PROJECT_ID=${LAMATIC_PROJECT_ID}
+      - LAMATIC_ENDPOINT=${LAMATIC_ENDPOINT}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - MISTRAL_MODEL=${MISTRAL_MODEL}
+      - AI_PROVIDER=${AI_PROVIDER}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
+    volumes:
+      - ./search_history:/app/search_history
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5300/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
