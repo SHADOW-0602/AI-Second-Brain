@@ -16,7 +16,10 @@
 
 <body>
     <div class="app-container">
-        <nav class="sidebar">
+        <!-- Mobile Sidebar Overlay -->
+        <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+        <nav class="sidebar" id="sidebar">
             <div class="logo">
                 <span class="logo-icon">🧠</span>
                 <span class="logo-text">Second Brain</span>
@@ -38,10 +41,25 @@
                     <span class="icon">📁</span> File Manager
                 </li>
             </ul>
+            
+            <div class="chat-sessions-sidebar">
+                <div class="sessions-header">
+                    <h4>Recent Chats</h4>
+                    <button class="btn-new-chat" id="sidebar-new-chat" title="New Chat">
+                        <span class="icon">+</span>
+                    </button>
+                </div>
+                <div class="sessions-list" id="sidebar-sessions-list">
+                    <p class="empty-state">No chats yet</p>
+                </div>
+            </div>
         </nav>
 
         <main class="content-area">
             <header class="top-bar">
+                <button class="mobile-menu-btn" id="mobile-menu-btn">
+                    ☰
+                </button>
                 <h1 id="page-title">Dashboard</h1>
                 <div class="user-profile">
                     <div class="avatar">U</div>
@@ -50,7 +68,7 @@
 
             <div id="main-content">
                 <!-- Dynamic Content Loaded Here -->
-                <div class="dashboard-view">
+                <div class="dashboard-view fade-in">
                     <div class="stats-grid">
                         <div class="stat-card">
                             <h3>Total Memories</h3>
@@ -73,7 +91,7 @@
         </main>
     </div>
 
-    <script type="module" src="/js/app.js?v=2"></script>
+    <script type="module" src="/js/app.js?v=3"></script>
 </body>
 
 </html>

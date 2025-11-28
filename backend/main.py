@@ -29,7 +29,7 @@ try:
     # Register routes
     app.include_router(ingest.router, prefix="/api")
     app.include_router(search.router, prefix="/api")
-    app.include_router(system.router, prefix="/api")
+    app.include_router(system.router, prefix="/api/system")
     app.include_router(advanced.router, prefix="/api")
     app.include_router(analytics.router, prefix="/api")
     app.include_router(chat_sessions.router, prefix="/api")
@@ -47,19 +47,36 @@ from fastapi.responses import FileResponse
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=os.path.join(base_dir, "static")), name="static")
+app.mount("/assets", StaticFiles(directory=os.path.join(base_dir, "static", "assets")), name="assets")
+
+# Mount frontend files for development
+frontend_dir = os.path.join(os.path.dirname(base_dir), "frontend")
+if os.path.exists(frontend_dir):
+    app.mount("/css", StaticFiles(directory=os.path.join(frontend_dir, "css")), name="css")
+    app.mount("/js", StaticFiles(directory=os.path.join(frontend_dir, "js")), name="js")
 
 @app.get("/")
 async def read_index():
-    static_index = os.path.join(base_dir, "static", "index.html")
-    if os.path.exists(static_index):
-        return FileResponse(static_index)
-    # Fallback to project root frontend
+    # Serve development frontend directly
     frontend_index = os.path.join(os.path.dirname(base_dir), "frontend", "index.html")
     if os.path.exists(frontend_index):
+        print(f"Serving frontend from: {frontend_index}")
         return FileResponse(frontend_index)
+    # Fallback to built version
+    static_index = os.path.join(base_dir, "static", "index.html")
+    if os.path.exists(static_index):
+        print(f"Serving static fallback from: {static_index}")
+        return FileResponse(static_index)
+    print("Frontend index not found!")
     return {"message": "Frontend not found. Please build frontend or check static files."}
 
 if __name__ == "__main__":
     import uvicorn
+    import logging
+    
+    # Suppress connection reset warnings
+    logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+    
     print("Starting Uvicorn server...")
-    uvicorn.run(app, host="127.0.0.1", port=5300)
+    from config import SERVER_HOST, SERVER_PORT
+    uvicorn.run(app, host=SERVER_HOST, port=SERVER_PORT, log_level="info")

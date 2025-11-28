@@ -72,9 +72,9 @@ INSTRUCTIONS:
 
         system_prompt = """You are a Memory Assistant.
 Extract key FACTS, DECISIONS, or CODE SNIPPETS from the provided Q&A.
-Output a JSON list of strings. Each string is a standalone fact.
+Output ONLY a valid JSON object with a "facts" array of strings.
 Ignore conversational filler.
-Example: ["Server port changed to 3000", "Database migration failed due to timeout"]
+Example: {"facts": ["Server port changed to 3000", "Database migration failed due to timeout"]}
 """
         
         user_content = f"Query: {query}\n\nAnswer: {answer}"
@@ -89,8 +89,10 @@ Example: ["Server port changed to 3000", "Database migration failed due to timeo
                 temperature=0.1,
                 response_format={"type": "json_object"}
             )
-            result = json.loads(completion.choices[0].message.content)
-            return result.get("facts", result.get("output", []))
+            content = completion.choices[0].message.content
+            result = json.loads(content)
+            facts = result.get("facts", [])
+            return facts if isinstance(facts, list) else []
         except Exception as e:
             logger.error(f"Groq Fact Extraction Error: {e}")
             return []

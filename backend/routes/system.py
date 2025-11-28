@@ -131,15 +131,29 @@ async def collection_stats(collection_name: str):
         return {"error": str(e)}
 
 @router.get("/files")
-async def list_uploaded_files():
+async def list_uploaded_files(session_id: str = None):
     """List all uploaded files."""
     try:
         from database import get_qdrant_client
         client = get_qdrant_client()
         
-        # Get all points and extract unique filenames
+        # Get points filtered by session_id if provided
+        from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+        
+        scroll_filter = None
+        if session_id:
+            scroll_filter = Filter(
+                must=[
+                    FieldCondition(
+                        key="session_id",
+                        match=MatchValue(value=session_id)
+                    )
+                ]
+            )
+        
         scroll_result = client.scroll(
             collection_name="second_brain",
+            scroll_filter=scroll_filter,
             limit=1000,
             with_payload=True
         )
@@ -147,7 +161,11 @@ async def list_uploaded_files():
         files = {}
         for point in scroll_result[0]:
             filename = point.payload.get("filename")
-            if filename:
+            # Skip memory entries and files without session_id if session filtering is active
+            if filename and point.payload.get("file_type") != "memory":
+                if session_id and not point.payload.get("session_id"):
+                    continue  # Skip files without session_id when filtering
+                    
                 if filename not in files:
                     files[filename] = {
                         "filename": filename,

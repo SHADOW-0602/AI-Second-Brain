@@ -3,14 +3,44 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-R2_ENDPOINT = os.getenv("R2_ENDPOINT", "https://617c07ad9ac38cde394c399b3f7eb0a6.r2.cloudflarestorage.com")
-R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "second-brain")
+# R2 Storage Configuration
+R2_ENDPOINT = os.getenv("R2_ENDPOINT")
+R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME")
 R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
 R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
-R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "https://pub-c8d242a9e7194c5eb8291af9db008248.r2.dev")
+R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL")
 
+# Qdrant Configuration
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "second_brain")
+QDRANT_SCORE_THRESHOLD = float(os.getenv("QDRANT_SCORE_THRESHOLD", "0.6"))
+
+# Server Configuration
+SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
+SERVER_PORT = int(os.getenv("SERVER_PORT", "5300"))
+
+# Processing Configuration
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "64"))
+MIN_CHUNK_SIZE = int(os.getenv("MIN_CHUNK_SIZE", "50"))
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "50"))
+VECTOR_SIZE = int(os.getenv("VECTOR_SIZE", "384"))
+
+# Database Configuration
+DB_TIMEOUT = int(os.getenv("DB_TIMEOUT", "30"))
+DB_RETRY_ATTEMPTS = int(os.getenv("DB_RETRY_ATTEMPTS", "3"))
+DB_CONNECTION_POOL_SIZE = int(os.getenv("DB_CONNECTION_POOL_SIZE", "10"))
+
+# Analytics Configuration
+ANALYTICS_SEARCH_COLLECTION = os.getenv("ANALYTICS_SEARCH_COLLECTION", "analytics_search_history")
+ANALYTICS_FILE_ACCESS_COLLECTION = os.getenv("ANALYTICS_FILE_ACCESS_COLLECTION", "analytics_file_access")
+ANALYTICS_METRICS_COLLECTION = os.getenv("ANALYTICS_METRICS_COLLECTION", "analytics_usage_metrics")
+
+# Cleanup Configuration
+CLEANUP_DAYS_OLD = int(os.getenv("CLEANUP_DAYS_OLD", "30"))
+CLEANUP_BATCH_SIZE = int(os.getenv("CLEANUP_BATCH_SIZE", "1000"))
 
 if not QDRANT_URL:
     raise ValueError("QDRANT_URL is not set in .env")

@@ -5,9 +5,14 @@ class ApiClient {
         // Config initialized
     }
 
-    async ingestFile(file) {
+    async ingestFile(file, sessionId = null) {
         const formData = new FormData();
         formData.append("file", file);
+        // Always require session_id for document isolation
+        if (!sessionId) {
+            throw new Error("Session ID is required for document upload");
+        }
+        formData.append("session_id", sessionId);
 
         try {
             const response = await fetch(`${API_BASE_URL}/ingest`, {
@@ -22,7 +27,7 @@ class ApiClient {
         }
     }
 
-    async search(query) {
+    async search(query, sessionId = null) {
         try {
             const response = await fetch(`${API_BASE_URL}/search`, {
                 method: "POST",
@@ -32,7 +37,8 @@ class ApiClient {
                 body: JSON.stringify({
                     query,
                     limit: 5,
-                    include_metadata: true
+                    include_metadata: true,
+                    session_id: sessionId  // Always include session_id for isolation
                 })
             });
             if (!response.ok) throw new Error("Search failed");

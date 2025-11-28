@@ -5,6 +5,13 @@ export class UI {
         this.mainContent = document.getElementById("main-content");
         this.pageTitle = document.getElementById("page-title");
         this.advancedFeatures = advancedFeatures;
+
+        // Load sessions from local storage
+        this.sessions = JSON.parse(localStorage.getItem('chat_sessions')) || [];
+        this.currentSessionId = null;
+
+        // Render sessions if sidebar exists
+        this.renderSessions();
     }
 
     async renderDashboard() {
@@ -12,23 +19,23 @@ export class UI {
         this.mainContent.innerHTML = `
             <div class="dashboard-view fade-in">
                 <div class="stats-grid">
-                    <div class="stat-card">
+                    <div class="stat-card delay-100">
                         <h3>Total Documents</h3>
-                        <p class="stat-value" id="total-docs">Loading...</p>
+                        <p class="stat-value" id="total-docs"><span class="loading-spinner" style="width: 20px; height: 20px; border-width: 2px;"></span></p>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card delay-200">
                         <h3>Total Chunks</h3>
-                        <p class="stat-value" id="total-chunks">Loading...</p>
+                        <p class="stat-value" id="total-chunks"><span class="loading-spinner" style="width: 20px; height: 20px; border-width: 2px;"></span></p>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card delay-300">
                         <h3>Storage Used</h3>
-                        <p class="stat-value" id="storage-size">Loading...</p>
+                        <p class="stat-value" id="storage-size"><span class="loading-spinner" style="width: 20px; height: 20px; border-width: 2px;"></span></p>
                     </div>
                 </div>
-                <div class="recent-activity">
+                <div class="recent-activity glass-card fade-in delay-300">
                     <h2>Recent Files</h2>
                     <div class="activity-list" id="recent-files">
-                        <p class="empty-state">Loading...</p>
+                        <div style="text-align: center; padding: 2rem;"><span class="loading-spinner"></span></div>
                     </div>
                 </div>
             </div>
@@ -44,30 +51,42 @@ export class UI {
             const analyticsResponse = await fetch('/api/system/analytics');
             const analytics = await analyticsResponse.json();
 
-            document.getElementById('total-docs').textContent = analytics.total_documents || 0;
-            document.getElementById('total-chunks').textContent = analytics.total_chunks || 0;
-            document.getElementById('storage-size').textContent = this.formatBytes(analytics.storage_size || 0);
+            const totalDocs = document.getElementById('total-docs');
+            const totalChunks = document.getElementById('total-chunks');
+            const storageSize = document.getElementById('storage-size');
+
+            if (totalDocs) totalDocs.textContent = analytics.total_documents || 0;
+            if (totalChunks) totalChunks.textContent = analytics.total_chunks || 0;
+            if (storageSize) storageSize.textContent = this.formatBytes(analytics.storage_size || 0);
 
             // Load recent files
             const filesResponse = await fetch('/api/system/files');
             const filesData = await filesResponse.json();
 
             const recentFiles = document.getElementById('recent-files');
-            if (filesData.files && filesData.files.length > 0) {
-                const recent = filesData.files.slice(0, 5);
-                recentFiles.innerHTML = recent.map(file => `
-                    <div style="padding: 0.75rem; border-left: 3px solid var(--accent-primary); background: var(--bg-card); margin-bottom: 0.5rem; border-radius: 0.5rem;">
-                        <strong>${file.filename}</strong>
-                        <div style="font-size: 0.9rem; color: var(--text-secondary);">${file.chunks} chunks • ${file.processed_at}</div>
-                    </div>
-                `).join('');
-            } else {
-                recentFiles.innerHTML = '<p class="empty-state">No files uploaded yet.</p>';
+            if (recentFiles) {
+                if (filesData.files && filesData.files.length > 0) {
+                    const recent = filesData.files.slice(0, 5);
+                    recentFiles.innerHTML = recent.map(file => `
+                        <div style="padding: 1rem; border-left: 3px solid var(--accent-primary); background: rgba(255,255,255,0.03); margin-bottom: 0.75rem; border-radius: 0.5rem; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s ease;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                            <div>
+                                <strong style="color: var(--text-primary); display: block; margin-bottom: 0.25rem;">${file.filename}</strong>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">${file.chunks} chunks • ${file.processed_at}</div>
+                            </div>
+                            <div style="font-size: 1.2rem;">📄</div>
+                        </div>
+                    `).join('');
+                } else {
+                    recentFiles.innerHTML = '<p class="empty-state">No files uploaded yet.</p>';
+                }
             }
         } catch (error) {
-            document.getElementById('total-docs').textContent = 'Error';
-            document.getElementById('total-chunks').textContent = 'Error';
-            document.getElementById('storage-size').textContent = 'Error';
+            console.error("Error loading dashboard stats:", error);
+            const els = ['total-docs', 'total-chunks', 'storage-size'];
+            els.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = '-';
+            });
         }
     }
 
@@ -106,10 +125,11 @@ export class UI {
 
             if (data.files && data.files.length > 0) {
                 if (fileGrid) {
-                    fileGrid.innerHTML = data.files.map(file => `
-                    <div class="file-card">
+                    fileGrid.innerHTML = data.files.map((file, index) => `
+                    <div class="file-card fade-in" style="animation-delay: ${index * 50}ms">
                         <input type="checkbox" class="file-checkbox" value="${file.filename}" 
-                               onchange="window.app.advancedFeatures.updateFileSelection('${file.filename}', this.checked)">
+                               onchange="window.app.advancedFeatures.updateFileSelection('${file.filename}', this.checked)"
+                               style="position: absolute; top: 1rem; left: 1rem; width: 18px; height: 18px;">
                         <div class="file-icon">📄</div>
                         <div class="file-info">
                             <div class="file-name">${file.filename}</div>
@@ -124,11 +144,15 @@ export class UI {
                 }
             } else {
                 if (fileGrid) {
-                    fileGrid.innerHTML = '<p class="empty-state">No files uploaded yet.</p>';
+                    fileGrid.innerHTML = '<p class="empty-state" style="grid-column: 1/-1;">No files uploaded yet.</p>';
                 }
             }
         } catch (error) {
             console.error('Failed to load files:', error);
+            const fileGrid = document.getElementById('file-grid');
+            if (fileGrid) {
+                fileGrid.innerHTML = '<p class="empty-state" style="grid-column: 1/-1; color: var(--error);">Error loading files. Please try again.</p>';
+            }
         }
     }
 
@@ -145,6 +169,10 @@ export class UI {
             if (response.ok) {
                 // Refresh file list and dashboard
                 this.loadUploadedFiles();
+                // Also refresh file manager if active
+                if (document.getElementById('file-grid')) {
+                    this.loadFileManagerData();
+                }
                 if (document.querySelector('.dashboard-view')) {
                     this.loadDashboardStats();
                 }
@@ -160,18 +188,20 @@ export class UI {
         this.pageTitle.textContent = "Upload Knowledge";
         this.mainContent.innerHTML = `
             <div class="upload-view fade-in">
-                <div class="upload-container" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 3rem; border: 2px dashed var(--border-color); border-radius: 1rem;">
-                    <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📄</span>
-                    <h3>Drag & Drop files here (multiple files supported)</h3>
-                    <p style="color: var(--text-secondary); margin-bottom: 2rem;">Supported formats: PDF, DOCX, TXT, MD, CSV, JSON, PY, JS, HTML, XML</p>
+                <div class="upload-container glass-card" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 3rem; border-radius: 1rem; cursor: pointer;">
+                    <span style="font-size: 4rem; display: block; margin-bottom: 1.5rem; filter: drop-shadow(0 0 10px var(--accent-glow));">☁️</span>
+                    <h3 style="margin-bottom: 0.5rem;">Drag & Drop files here</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 2rem;">Supported: PDF, DOCX, TXT, MD, CSV, JSON, PY, JS, HTML, XML</p>
                     <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.csv,.json,.py,.js,.html,.xml" multiple style="display: none;">
-                    <button class="btn-primary" onclick="document.getElementById('file-input').click()">Select File</button>
-                    <div id="upload-status" style="margin-top: 1rem;"></div>
+                    <button class="btn-primary" onclick="document.getElementById('file-input').click()">Select Files</button>
+                    <div id="upload-status" style="margin-top: 1.5rem; min-height: 1.5rem; font-weight: 500;"></div>
                 </div>
                 
-                <div class="uploaded-files" style="margin-top: 2rem;">
-                    <h3>Uploaded Files</h3>
-                    <div id="files-list">Loading...</div>
+                <div class="uploaded-files glass-card" style="margin-top: 2rem; padding: 1.5rem; border-radius: 1rem;">
+                    <h3 style="margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem;">Uploaded Files</h3>
+                    <div id="files-list">
+                        <div style="text-align: center; padding: 1rem;"><span class="loading-spinner"></span></div>
+                    </div>
                 </div>
             </div>
         `;
@@ -195,19 +225,19 @@ export class UI {
         uploadContainer.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadContainer.style.borderColor = 'var(--accent-primary)';
-            uploadContainer.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+            uploadContainer.style.background = 'rgba(99, 102, 241, 0.1)';
         });
 
         uploadContainer.addEventListener('dragleave', (e) => {
             e.preventDefault();
             uploadContainer.style.borderColor = 'var(--border-color)';
-            uploadContainer.style.backgroundColor = 'transparent';
+            uploadContainer.style.background = 'var(--bg-card)';
         });
 
         uploadContainer.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadContainer.style.borderColor = 'var(--border-color)';
-            uploadContainer.style.backgroundColor = 'transparent';
+            uploadContainer.style.background = 'var(--bg-card)';
 
             const files = e.dataTransfer.files;
             if (files.length === 1) {
@@ -216,65 +246,77 @@ export class UI {
                 window.app.handleMultipleUpload(files);
             }
         });
+
+        // Make the whole container clickable
+        uploadContainer.addEventListener('click', (e) => {
+            if (e.target !== fileInput && e.target.tagName !== 'BUTTON') {
+                fileInput.click();
+            }
+        });
     }
 
     async loadUploadedFiles() {
         try {
-            const response = await fetch('/api/system/files');
+            // Always filter by current session for document isolation
+            if (!this.currentSessionId) {
+                await this.createNewChat();
+            }
+            
+            let url = `/api/system/files?session_id=${this.currentSessionId}`;
+            const response = await fetch(url);
             const data = await response.json();
             const filesList = document.getElementById('files-list');
 
-            if (data.files && data.files.length > 0) {
-                filesList.innerHTML = data.files.map(file => `
-                    <div style="padding: 1rem; border: 1px solid var(--border-color); border-radius: 0.5rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong>${file.filename}</strong>
-                            <div style="font-size: 0.9rem; color: var(--text-secondary);">
-                                ${file.file_type} • ${file.chunks} chunks • ${file.processed_at}
+            if (filesList) {
+                if (data.files && data.files.length > 0) {
+                    filesList.innerHTML = data.files.map(file => `
+                        <div style="padding: 1rem; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.02); border-radius: 0.5rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s ease;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+                            <div>
+                                <strong style="color: var(--text-primary);">${file.filename}</strong>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                    ${file.file_type} • ${file.chunks} chunks • ${file.processed_at}
+                                </div>
                             </div>
+                            <button class="btn-delete" onclick="event.stopPropagation(); window.app.ui.deleteFile('${file.filename}')" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Delete</button>
                         </div>
-                        <button class="btn-delete" onclick="window.app.ui.deleteFile('${file.filename}')" style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer; font-size: 0.9rem;">Delete</button>
-                    </div>
-                `).join('');
-            } else {
-                filesList.innerHTML = '<p style="color: var(--text-secondary); text-align: center;">No files uploaded yet.</p>';
+                    `).join('');
+                } else {
+                    filesList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">No files uploaded yet.</p>';
+                }
             }
         } catch (error) {
-            document.getElementById('files-list').innerHTML = '<p style="color: #ef4444;">Error loading files.</p>';
+            const list = document.getElementById('files-list');
+            if (list) list.innerHTML = '<p style="color: var(--error); text-align: center;">Error loading files.</p>';
         }
     }
 
     renderSearch() {
         this.pageTitle.textContent = "Search & Chat";
         this.mainContent.innerHTML = `
-            <div class="search-chat-container fade-in">
-                <!-- Chat Sessions Sidebar -->
-                <div class="chat-sessions-sidebar">
-                    <div class="sessions-header">
-                        <h3>Chat Sessions</h3>
-                        <button class="btn-primary" id="new-chat-btn">+ New Chat</button>
-                    </div>
-                    <div class="sessions-list" id="sessions-list">
-                        <p class="empty-state">No chat sessions yet</p>
+            <div class="main-chat-area fade-in">
+                <div class="chat-header">
+                    <h4 id="current-session-title" style="margin: 0; font-size: 1rem; color: var(--text-primary);">Select or create a chat session</h4>
+                </div>
+
+                <div class="chat-messages" id="chat-messages">
+                    <div class="welcome-screen">
+                        <div class="welcome-icon">🧠</div>
+                        <h2>AI Second Brain</h2>
+                        <p>Select a chat session from the sidebar or start a new one to begin.</p>
                     </div>
                 </div>
 
-                <!-- Main Chat Area -->
-                <div class="main-chat-area">
-                    <div class="chat-header">
-                        <h4 id="current-session-title">Select or create a chat session</h4>
-                        <!-- Provider selection removed, defaulting to Parallel -->
-                    </div>
+                <div id="search-results" class="search-results" style="display: none;"></div>
 
-                    <div class="chat-messages" id="chat-messages">
-                        <div class="message system">
-                            Create a new chat or select an existing session to start chatting.
-                        </div>
-                    </div>
-
-                    <div class="chat-input-area" id="chat-input-area" style="display: none;">
-                        <input type="text" id="chat-input" placeholder="Ask a question...">
-                        <button class="btn-primary" id="send-btn">Send</button>
+                <div class="chat-input-area">
+                    <div class="input-wrapper">
+                        <input type="text" id="chat-input" placeholder="Ask anything or search your brain..." autocomplete="off">
+                        <button id="send-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -285,15 +327,31 @@ export class UI {
 
     async initializeChatSessions() {
         this.currentSessionId = null;
-        this.sessions = [];
 
-        this.loadSessions();
+        // Load sessions from server (shared across all users)
+        await this.loadSessions();
 
-        document.getElementById('new-chat-btn').addEventListener('click', () => this.createNewChat());
-        document.getElementById('send-btn').addEventListener('click', () => this.handleSessionSend());
-        document.getElementById('chat-input').addEventListener('keypress', (e) => {
+        this.renderSidebarSessions();
+
+        const sendBtn = document.getElementById('send-btn');
+        const chatInput = document.getElementById('chat-input');
+
+        if (sendBtn) sendBtn.addEventListener('click', () => this.handleSessionSend());
+        if (chatInput) chatInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.handleSessionSend();
         });
+
+        // Auto-create new chat if no session is selected (New Tab behavior)
+        // We check if we are in a "fresh" state. 
+        // Since we don't persist currentSessionId in localStorage (only the list),
+        // a refresh or new tab will always have currentSessionId = null.
+        // The user wants "completely new browser tab automatically open/create new chat".
+        // So we should create a new chat immediately.
+
+        // However, we should only do this if we are on the search/chat page.
+        // But initializeChatSessions is called from renderSearch.
+
+        await this.createNewChat();
     }
 
     async createNewChat() {
@@ -307,82 +365,160 @@ export class UI {
                 created: new Date().toISOString()
             };
 
-            this.sessions.push(newSession);
+            this.sessions.unshift(newSession);
+            this.saveSessions(); // Save after adding new session
             this.selectSession(newSession.id);
-            this.renderSessions();
-            this.saveSessions();
+            this.renderSidebarSessions(); // Update sidebar
 
         } catch (error) {
             console.error('Failed to create chat:', error);
         }
     }
 
-    selectSession(sessionId) {
-        this.currentSessionId = sessionId;
-        const session = this.sessions.find(s => s.id === sessionId);
+    async updateChatTitle(sessionId) {
+        try {
+            const response = await fetch(`/api/chat/title/${sessionId}`);
+            const data = await response.json();
 
-        if (session) {
-            document.getElementById('current-session-title').textContent = session.title;
-            document.getElementById('chat-input-area').style.display = 'flex';
-            this.loadChatHistory(sessionId);
-            this.renderSessions();
+            const session = this.sessions.find(s => s.id === sessionId);
+            if (session && data.title) {
+                session.title = data.title;
+                this.saveSessions(); // Save after updating title
+                this.renderSidebarSessions(); // Update sidebar
+
+                // Update header if this is the current session
+                if (this.currentSessionId === sessionId) {
+                    const titleEl = document.getElementById('current-session-title');
+                    if (titleEl) titleEl.textContent = session.title;
+                }
+            }
+        } catch (error) {
+            console.error('Failed to update chat title:', error);
         }
     }
 
+    saveSessions() {
+        localStorage.setItem('chat_sessions', JSON.stringify(this.sessions));
+    }
+
+    async loadSessions() {
+        try {
+            const response = await fetch('/api/chat/sessions');
+            const data = await response.json();
+            this.sessions = data.sessions || [];
+            localStorage.setItem('chat_sessions', JSON.stringify(this.sessions));
+        } catch (error) {
+            const saved = localStorage.getItem('chat_sessions');
+            this.sessions = saved ? JSON.parse(saved) : [];
+        }
+    }
+
+    async selectSession(sessionId) {
+        this.currentSessionId = sessionId;
+
+        // Update UI to show selected state
+        document.querySelectorAll('.session-item').forEach(item => {
+            item.classList.remove('active');
+            if (item.dataset.id === sessionId) item.classList.add('active');
+        });
+
+        const session = this.sessions.find(s => s.id === sessionId);
+        if (session) {
+            const titleEl = document.getElementById('current-session-title');
+            if (titleEl) titleEl.textContent = session.title;
+        }
+
+        await this.loadChatHistory(sessionId);
+    }
+
     async loadChatHistory(sessionId) {
+        const container = document.getElementById('chat-messages');
+        if (!container) return;
+
+        container.innerHTML = '<div class="loading-spinner"></div>';
+
         try {
             const response = await fetch(`/api/chat/history/${sessionId}`);
             const data = await response.json();
 
-            const messagesContainer = document.getElementById('chat-messages');
-            messagesContainer.innerHTML = '';
+            container.innerHTML = '';
 
-            if (data.history && data.history.length > 0) {
-                data.history.forEach(msg => {
-                    this.addMessage(msg.content, msg.role === 'user' ? 'user' : 'ai');
-                });
-            } else {
-                this.addMessage('Hello! How can I help you today?', 'ai');
+            if (!data.history || data.history.length === 0) {
+                container.innerHTML = `
+                    <div class="welcome-screen">
+                        <div class="welcome-icon">💬</div>
+                        <h2>Start Chatting</h2>
+                        <p>Send a message to begin this conversation.</p>
+                    </div>
+                `;
+                return;
             }
 
+            data.history.forEach(msg => {
+                this.addMessage(msg.content, msg.role, msg.metadata);
+            });
+
         } catch (error) {
-            console.error('Failed to load chat history:', error);
+            console.error('Failed to load history:', error);
+            container.innerHTML = '<div class="error-message">Failed to load chat history</div>';
         }
     }
 
     renderSessions() {
-        const sessionsList = document.getElementById('sessions-list');
+        this.renderSidebarSessions();
+    }
+
+    renderSidebarSessions() {
+        const container = document.getElementById('chat-sessions-list');
+        if (!container) return;
 
         if (this.sessions.length === 0) {
-            sessionsList.innerHTML = '<p class="empty-state">No chat sessions yet</p>';
+            container.innerHTML = `
+                <div style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
+                    No chats yet
+                </div>
+            `;
             return;
         }
 
-        sessionsList.innerHTML = this.sessions.map(session => `
+        container.innerHTML = this.sessions.map(session => {
+            const safeId = session.id.replace(/'/g, '&apos;');
+            const safeTitle = session.title.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `
             <div class="session-item ${session.id === this.currentSessionId ? 'active' : ''}" 
-                 onclick="window.app.ui.selectSession('${session.id}')">
-                <div class="session-title">${session.title}</div>
-                <div class="session-date">${new Date(session.created).toLocaleDateString()}</div>
-                <button class="session-delete" onclick="event.stopPropagation(); window.app.ui.deleteSession('${session.id}')">&times;</button>
+                 data-id="${safeId}"
+                 onclick="window.app.ui.selectSession('${safeId}')">
+                <div class="session-title">${safeTitle}</div>
+                <button class="delete-session-btn" onclick="event.stopPropagation(); window.app.ui.deleteSession('${safeId}')">
+                    ×
+                </button>
             </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     async handleSessionSend() {
-        if (!this.currentSessionId) {
-            alert('Please create or select a chat session first');
-            return;
-        }
-
         const input = document.getElementById('chat-input');
         const message = input.value.trim();
-        const provider = "parallel";
 
         if (!message) return;
 
+        if (!this.currentSessionId) {
+            await this.createNewChat();
+        }
+
         input.value = '';
         this.addMessage(message, 'user');
-        this.addMessage('Thinking...', 'ai');
+
+        // Show loading state
+        const loadingId = 'loading-' + Date.now();
+        const container = document.getElementById('chat-messages');
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = loadingId;
+        loadingDiv.className = 'message system';
+        loadingDiv.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+        container.appendChild(loadingDiv);
+        container.scrollTop = container.scrollHeight;
 
         try {
             const response = await fetch('/api/chat/message', {
@@ -390,28 +526,33 @@ export class UI {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     session_id: this.currentSessionId,
-                    message: message,
-                    ai_provider: provider,
-                    workflow_id: 'default'
+                    message: message
                 })
             });
 
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
             const data = await response.json();
 
-            const messages = document.querySelectorAll('.message.ai');
-            if (messages.length > 0) {
-                messages[messages.length - 1].remove();
-            }
+            // Remove loading indicator
+            const loadingEl = document.getElementById(loadingId);
+            if (loadingEl) loadingEl.remove();
 
-            this.addMessage(data.response, 'ai', { ai_provider: data.ai_provider });
+            this.addMessage(data.response, 'assistant', data.metadata);
+
+            // Update title if it's the first message
+            const session = this.sessions.find(s => s.id === this.currentSessionId);
+            if (session && session.title.startsWith('Chat ')) {
+                this.updateChatTitle(this.currentSessionId);
+            }
 
         } catch (error) {
-            console.error('Chat error:', error);
-            const messages = document.querySelectorAll('.message.ai');
-            if (messages.length > 0) {
-                messages[messages.length - 1].remove();
-            }
-            this.addMessage('Sorry, I encountered an error. Please try again.', 'ai');
+            console.error('Failed to send message:', error);
+            const loadingEl = document.getElementById(loadingId);
+            if (loadingEl) loadingEl.remove();
+            this.addMessage('Failed to send message. Please try again.', 'system');
         }
     }
 
@@ -419,92 +560,40 @@ export class UI {
         if (!confirm('Delete this chat session?')) return;
 
         this.sessions = this.sessions.filter(s => s.id !== sessionId);
+        this.saveSessions(); // Save after deleting session
 
         if (this.currentSessionId === sessionId) {
             this.currentSessionId = null;
-            document.getElementById('chat-input-area').style.display = 'none';
-            document.getElementById('current-session-title').textContent = 'Select or create a chat session';
-            document.getElementById('chat-messages').innerHTML = '<div class="message system">Create a new chat or select an existing session.</div>';
-        }
-
-        this.renderSessions();
-        this.saveSessions();
-    }
-
-    saveSessions() {
-        localStorage.setItem('chat_sessions', JSON.stringify(this.sessions));
-    }
-
-    loadSessions() {
-        const saved = localStorage.getItem('chat_sessions');
-        if (saved) {
-            this.sessions = JSON.parse(saved);
-            this.renderSessions();
-        }
-    }
-
-    async handleSend() {
-        const input = document.getElementById('chat-input');
-        const message = input.value.trim();
-        const searchType = document.getElementById('search-type').value;
-
-        if (!message) return;
-
-        // Clear input
-        input.value = '';
-
-        // Add user message
-        this.addMessage(message, 'user');
-
-        // Determine mode
-        if (searchType === 'auto') {
-            // Simple heuristic: ? at end or "what/how/why" start -> chat, else search
-            const isQuestion = message.endsWith('?') ||
-                /^(what|how|why|who|when|where)/i.test(message);
-
-            if (isQuestion) {
-                await window.app.handleChat(message, "mistral"); // Default to mistral for chat
-            } else {
-                await this.performAdvancedSearch(message, "hybrid");
-            }
-        } else if (searchType === 'mistral' || searchType === 'lamatic') {
-            // Explicit chat provider
-            await window.app.handleChat(message, searchType);
+            this.renderSearch(); // Reset view
         } else {
-            // Fallback
-            await this.performAdvancedSearch(message, "hybrid");
+            this.renderSidebarSessions();
         }
     }
 
-    async performAdvancedSearch(query, searchType) {
-        // Automatic filters
-        const filters = {
-            file_types: null, // Search all types
-            min_score: 0.0    // Default score
-        };
-
-        // Hide chat, show results
-        document.getElementById('chat-messages').style.display = 'none';
+    async performAdvancedSearch(query) {
         const resultsArea = document.getElementById('search-results');
-        resultsArea.style.display = 'block';
-        resultsArea.innerHTML = `
-            <div style="text-align: center; padding: 3rem;">
-                <div class="loading-spinner"></div>
-                <p style="margin-top: 1rem; color: var(--text-secondary);">Searching and generating AI summary...</p>
-            </div>
-        `;
+        const chatArea = document.getElementById('chat-messages');
+
+        if (resultsArea) {
+            resultsArea.style.display = 'block';
+            resultsArea.innerHTML = '<div class="loading-spinner"></div>';
+        }
+        if (chatArea) chatArea.style.display = 'none';
 
         try {
-            const response = await fetch('/api/advanced/search/advanced', {
+            // Ensure we have a session for search isolation
+            if (!this.currentSessionId) {
+                await this.createNewChat();
+            }
+            
+            const response = await fetch('/api/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    query,
-                    search_type: searchType,
-                    filters,
+                    query: query,
                     limit: 10,
-                    save_to_history: true,
-                    summarize: true // Request AI summary
+                    include_summary: true,
+                    session_id: this.currentSessionId // Always pass session_id for isolation
                 })
             });
 
@@ -512,13 +601,14 @@ export class UI {
             this.displaySearchResults(data, query);
 
         } catch (error) {
-            console.error('Advanced search failed:', error);
-            resultsArea.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 2rem;">Search failed. Please try again.</p>';
+            console.error('Search failed:', error);
+            if (resultsArea) resultsArea.innerHTML = '<div class="error-message">Search failed</div>';
         }
     }
 
     displaySearchResults(data, query) {
         const resultsArea = document.getElementById('search-results');
+        if (!resultsArea) return;
 
         if (!data.results || data.results.length === 0) {
             resultsArea.innerHTML = '<p class="no-results" style="text-align: center; padding: 2rem;">No results found</p>';
@@ -526,7 +616,7 @@ export class UI {
         }
 
         let html = `
-            <div class="results-header" style="padding: 1rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <div class="results-header" style="padding: 1rem; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center;">
                 <div>
                     <span style="font-weight: 600; color: var(--text-primary);">${data.total_found} results</span>
                     <span style="color: var(--text-secondary); margin-left: 0.5rem; font-size: 0.9rem;">(${Math.round(data.response_time * 1000)}ms)</span>
@@ -539,12 +629,12 @@ export class UI {
         // AI Summary Section
         if (data.ai_summary) {
             html += `
-                <div class="ai-summary-card fade-in">
-                    <div class="summary-header">
-                        <span class="ai-icon">✨</span>
-                        <h3>AI Summary</h3>
+                <div class="glass-card fade-in" style="padding: 1.5rem; margin-bottom: 2rem; border-radius: 1rem; border-left: 4px solid var(--accent-primary);">
+                    <div class="summary-header" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                        <span style="font-size: 1.5rem;">✨</span>
+                        <h3 style="margin: 0;">AI Summary</h3>
                     </div>
-                    <div class="summary-content">
+                    <div class="summary-content" style="line-height: 1.6; color: var(--text-primary);">
                         ${data.ai_summary.replace(/\n/g, '<br>')}
                     </div>
                 </div>
@@ -552,32 +642,32 @@ export class UI {
         }
 
         // Results Cards
-        html += data.results.map(result => {
+        html += data.results.map((result, index) => {
             const scorePercent = Math.round(result.combined_score * 100);
-            const scoreClass = scorePercent > 80 ? 'high' : scorePercent > 50 ? 'medium' : 'low';
+            const scoreClass = scorePercent > 80 ? 'var(--success)' : scorePercent > 50 ? 'var(--warning)' : 'var(--error)';
 
             return `
-                <div class="result-card fade-in">
-                    <div class="result-header">
-                        <div class="file-info">
-                            <span class="file-icon">📄</span>
-                            <span class="filename">${result.filename}</span>
+                <div class="glass-card fade-in" style="padding: 1.5rem; margin-bottom: 1.5rem; border-radius: 1rem; animation-delay: ${index * 100}ms;">
+                    <div class="result-header" style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                        <div class="file-info" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.2rem;">📄</span>
+                            <span class="filename" style="font-weight: 600;">${result.filename}</span>
                         </div>
-                        <div class="score-badge ${scoreClass}">
+                        <div class="score-badge" style="background: ${scoreClass}; color: white; padding: 0.2rem 0.6rem; border-radius: 1rem; font-size: 0.8rem; font-weight: 600;">
                             ${scorePercent}% Match
                         </div>
                     </div>
-                    
-                    <div class="result-body">
-                        <p class="result-text">${this.highlightQuery(result.text, query)}</p>
+
+                    <div class="result-body" style="margin-bottom: 1rem; color: var(--text-secondary); line-height: 1.6;">
+                        <p>${this.highlightQuery(result.text, query)}</p>
                     </div>
-                    
-                    <div class="result-footer">
+
+                    <div class="result-footer" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: var(--text-muted);">
                         <div class="meta-info">
                             <span class="meta-tag">${result.file_type}</span>
-                            <span class="meta-tag">Chunk ${result.chunk_index}</span>
+                            <span class="meta-tag" style="margin-left: 0.5rem;">Chunk ${result.chunk_index}</span>
                         </div>
-                        <button class="btn-copy" onclick="navigator.clipboard.writeText(this.parentElement.previousElementSibling.textContent).then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy', 2000); })">
+                        <button class="btn-copy" style="background: none; border: 1px solid var(--glass-border); color: var(--text-secondary); padding: 0.2rem 0.6rem; border-radius: 0.25rem; cursor: pointer;" onclick="navigator.clipboard.writeText(this.parentElement.previousElementSibling.textContent).then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy', 2000); })">
                             Copy
                         </button>
                     </div>
@@ -590,91 +680,59 @@ export class UI {
     }
 
     highlightQuery(text, query) {
-        if (!query) return text;
-        const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-        let highlightedText = text;
+        if (!query || !text) return text;
+        try {
+            const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+            let highlightedText = text;
 
-        words.forEach(word => {
-            const regex = new RegExp(`(${word})`, 'gi');
-            highlightedText = highlightedText.replace(regex, '<mark>$1</mark>');
-        });
+            words.forEach(word => {
+                const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`(${escapedWord})`, 'gi');
+                highlightedText = highlightedText.replace(regex, '<mark style="background: rgba(99, 102, 241, 0.3); color: white; padding: 0 2px; border-radius: 2px;">$1</mark>');
+            });
 
-        return highlightedText;
-    }
-
-    detectSearchType(query) {
-        const lowerQuery = query.toLowerCase();
-
-        // Exact phrase patterns (keyword search)
-        if (query.includes('"') || /\b(exact|exactly|phrase)\b/.test(lowerQuery)) {
-            return "keyword";
+            return highlightedText;
+        } catch (error) {
+            console.error('Error highlighting query:', error);
+            return text;
         }
-
-        // Technical terms or specific keywords
-        if (/\b(function|class|method|variable|error|code|algorithm|implementation)\b/.test(lowerQuery)) {
-            return "keyword";
-        }
-
-        // Conceptual queries (semantic search)
-        if (/\b(concept|idea|meaning|similar|related|like|about|explain|understand)\b/.test(lowerQuery)) {
-            return "semantic";
-        }
-
-        // Complex queries with multiple aspects (hybrid search)
-        if (query.split(' ').length > 5 || /\b(and|or|but|however|also|including)\b/.test(lowerQuery)) {
-            return "hybrid";
-        }
-
-        // Questions or conversational queries (AI chat)
-        if (/^(what|how|why|when|where|who|can|could|should|would|is|are|do|does)\b/i.test(query) || query.includes('?')) {
-            return "chat";
-        }
-
-        // Default to semantic for general searches
-        return "semantic";
-    }
-
-    getSearchTypeLabel(type) {
-        const labels = {
-            "chat": "AI Chat",
-            "hybrid": "Hybrid Search",
-            "semantic": "Semantic Search",
-            "keyword": "Keyword Search"
-        };
-        return labels[type] || type;
     }
 
     addMessage(text, type, metadata = null) {
-        const container = document.getElementById("chat-messages");
-        if (!container) return;
+        try {
+            const container = document.getElementById("chat-messages");
+            if (!container) return;
 
-        const msgDiv = document.createElement("div");
-        msgDiv.className = `message ${type} fade-in`;
+            const msgDiv = document.createElement("div");
+            msgDiv.className = `message ${type || 'user'}`;
 
-        // Style system messages differently
-        if (type === "system") {
-            msgDiv.style.cssText = "background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent-primary); font-size: 0.9rem; font-style: italic;";
+            // Style system messages differently
+            if (type === "system") {
+                msgDiv.style.cssText = "background: rgba(99, 102, 241, 0.1); border-left: 3px solid var(--accent-primary); font-size: 0.9rem; font-style: italic; color: var(--text-secondary);";
+            }
+
+            // Add provider badge if metadata is provided
+            if (metadata && metadata.ai_provider) {
+                const badge = document.createElement("div");
+                badge.className = "provider-badge";
+
+                const providerIcon = "🚀";
+                const providerName = "Parallel Workflow";
+                const modelInfo = metadata.model_used ? ` • ${metadata.model_used}` : "";
+
+                badge.innerHTML = `<span>${providerIcon} ${providerName}${modelInfo}</span>`;
+                msgDiv.appendChild(badge);
+            }
+
+            const textDiv = document.createElement("div");
+            const safeText = (text || '').replace(/\n/g, '<br>');
+            textDiv.innerHTML = safeText;
+            msgDiv.appendChild(textDiv);
+
+            container.appendChild(msgDiv);
+            container.scrollTop = container.scrollHeight;
+        } catch (error) {
+            console.error('Error adding message:', error);
         }
-
-        // Add provider badge if metadata is provided
-        if (metadata && metadata.ai_provider) {
-            const badge = document.createElement("div");
-            badge.className = "provider-badge";
-            badge.style.cssText = "font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem;";
-
-            const providerIcon = "🚀";
-            const providerName = "Parallel Workflow";
-            const modelInfo = metadata.model_used ? ` • ${metadata.model_used}` : "";
-
-            badge.innerHTML = `<span>${providerIcon} ${providerName}${modelInfo}</span>`;
-            msgDiv.appendChild(badge);
-        }
-
-        const textDiv = document.createElement("div");
-        textDiv.textContent = text;
-        msgDiv.appendChild(textDiv);
-
-        container.appendChild(msgDiv);
-        container.scrollTop = container.scrollHeight;
     }
 }

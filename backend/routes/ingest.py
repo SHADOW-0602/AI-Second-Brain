@@ -6,15 +6,17 @@ from r2_storage import r2_storage
 from qdrant_client.http import models
 import uuid
 
+from config import QDRANT_COLLECTION_NAME, VECTOR_SIZE, BATCH_SIZE
+
 router = APIRouter()
 client = get_qdrant_client()
-COLLECTION_NAME = "second_brain"
+COLLECTION_NAME = QDRANT_COLLECTION_NAME
 
 # Ensure collection exists with professional configuration
-qdrant_manager.ensure_collection(COLLECTION_NAME, vector_size=384)
+qdrant_manager.ensure_collection(COLLECTION_NAME, vector_size=VECTOR_SIZE)
 
 @router.post("/ingest", response_model=IngestResponse)
-async def ingest_file(file: UploadFile = File(...)):
+async def ingest_file(file: UploadFile = File(...), session_id: str = None):
     import time
     start_time = time.time()
     
@@ -45,6 +47,7 @@ async def ingest_file(file: UploadFile = File(...)):
                     "file_size": metadata['file_size'],
                     "file_url": file_url,  # R2 URL
                     "processed_at": metadata['processed_at'],
+                    "session_id": session_id,  # Session isolation
                     "type": "file"
                 }
             ))
@@ -53,7 +56,7 @@ async def ingest_file(file: UploadFile = File(...)):
             batch_result = qdrant_manager.batch_upsert(
                 collection_name=COLLECTION_NAME,
                 points=points,
-                batch_size=50
+                batch_size=BATCH_SIZE
             )
             
             if "error" in batch_result:

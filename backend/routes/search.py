@@ -6,9 +6,11 @@ from models import SearchRequest, SearchResponse, SearchResult
 # Analytics tracker
 from analytics import analytics_tracker
 
+from config import QDRANT_COLLECTION_NAME
+
 router = APIRouter()
 client = get_qdrant_client()
-COLLECTION_NAME = "second_brain"
+COLLECTION_NAME = QDRANT_COLLECTION_NAME
 
 @router.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest):
@@ -16,18 +18,28 @@ async def search(request: SearchRequest):
     start_time = time.time()
     try:
         vector = get_embedding(request.query)
-        # Optional file type filter
-        filter_conditions = None
+        # Optional file type and session filter
+        from qdrant_client.http import models
+        must_conditions = []
+        
         if request.file_types:
-            from qdrant_client.http import models
-            filter_conditions = models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="file_type",
-                        match=models.MatchAny(any=request.file_types)
-                    )
-                ]
+            must_conditions.append(
+                models.FieldCondition(
+                    key="file_type",
+                    match=models.MatchAny(any=request.file_types)
+                )
             )
+            
+        if request.session_id:
+            must_conditions.append(
+                models.FieldCondition(
+                    key="session_id",
+                    match=models.MatchValue(value=request.session_id)
+                )
+            )
+            
+        filter_conditions = models.Filter(must=must_conditions) if must_conditions else None
+
         results = qdrant_manager.advanced_search(
             collection_name=COLLECTION_NAME,
             query_vector=vector,

@@ -52,6 +52,7 @@ class SearchRequest(BaseModel):
     min_score: float = Field(0.0, ge=0.0, le=1.0, description="Minimum similarity score")
     file_types: Optional[List[str]] = Field(None, description="Filter by file types")
     include_metadata: bool = Field(True, description="Include chunk metadata")
+    session_id: Optional[str] = Field(None, description="Filter by session ID")
 
 class SearchResult(BaseModel):
     """Enhanced search result."""

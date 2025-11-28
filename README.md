@@ -6,19 +6,23 @@ A professional-grade persistent memory system for AI applications. Build retriev
 
 ### 🚀 Core Capabilities
 - **Multi-format Document Processing** - PDF, DOCX, CSV, JSON, Code files
-- **Semantic Search & Retrieval** - Vector-based similarity search
+- **Semantic Search & Retrieval** - Vector-based similarity search with session isolation
 - **Parallel AI Workflow** - Simultaneous execution of multiple LLMs (Gemini, Mistral, Cohere) for enhanced accuracy
 - **Smart Aggregation** - Uses Groq (Llama 3 70B) to synthesize the best answer from multiple models
 - **Long-Term Memory** - Automatically extracts and stores key facts from conversations
+- **Chat Session Management** - Persistent conversations with shared memory across sessions
+- **Dual Storage System** - Qdrant for fast retrieval + R2 for permanent archival
 - **Professional APIs** - Enterprise-grade FastAPI backend
 - **Real-time Analytics** - System monitoring and insights
 
 ### 🏗️ Enterprise Architecture
-- **Qdrant Vector Database** - Scalable vector storage with optimization
+- **Qdrant Vector Database** - Scalable vector storage with session filtering
+- **Cloudflare R2 Storage** - Permanent conversation archival
 - **Advanced Chunking** - Sentence-aware text processing
 - **Background Tasks** - Non-blocking memory storage and fact extraction
+- **Session Isolation** - Documents isolated by session, memories shared globally
 - **Health Monitoring** - System status and performance tracking
-- **Error Handling** - Comprehensive retry logic and validation
+- **Error Handling** - Comprehensive retry logic and null safety
 
 ## 🛠️ Tech Stack
 
@@ -84,6 +88,12 @@ python main.py
 - `POST /api/chat/message` - Context-aware AI conversations (Parallel Workflow)
 - `POST /api/workflow/parallel` - Direct access to the parallel workflow
 
+### Chat Management
+- `POST /api/chat/start` - Create new chat session
+- `GET /api/chat/sessions` - Get all chat sessions (shared)
+- `GET /api/chat/history/{session_id}` - Get chat history for session
+- `GET /api/chat/title/{session_id}` - Get auto-generated chat title
+
 ### System Monitoring
 - `GET /api/system/health` - System health status
 - `GET /api/system/analytics` - Usage analytics
@@ -118,21 +128,24 @@ HF_HUB_DISABLE_SYMLINKS_WARNING=1
 │   Frontend      │    │   FastAPI        │    │   Qdrant        │
 │   (Vanilla JS)  │◄──►│   Backend        │◄──►│   Vector DB     │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
-                              │
-                              ▼
-                       ┌──────────────────┐
-                       │ Parallel Workflow│
-                       │ (Groq, Gemini,   │
-                       │  Mistral, Cohere)│
-                       └──────────────────┘
+                              │                        │
+                              ▼                        ▼
+                       ┌──────────────────┐    ┌─────────────────┐
+                       │ Parallel Workflow│    │ Cloudflare R2   │
+                       │ (Groq, Gemini,   │    │ Storage         │
+                       │  Mistral, Cohere)│    │ (Archival)      │
+                       └──────────────────┘    └─────────────────┘
 ```
 
 ## 📊 Performance Features
 
 - **Parallel Execution**: Significantly reduces latency by running models concurrently
 - **Background Memory**: Fact extraction happens in the background, keeping the UI snappy
+- **Session Isolation**: Documents isolated by session, memories shared globally
+- **Dual Storage**: Fast retrieval (Qdrant) + permanent archival (R2)
 - **Connection Pooling**: Efficient database connections
 - **Quantization**: INT8 scalar quantization for memory efficiency
+- **Error Recovery**: Comprehensive null safety and retry logic
 
 ## 🔍 Usage Examples
 
@@ -162,6 +175,21 @@ chat_data = {
     "ai_provider": "parallel"
 }
 response = requests.post('http://localhost:5300/api/chat/message', json=chat_data)
+```
+
+### Chat Session Management
+```python
+# Start new chat session
+response = requests.post('http://localhost:5300/api/chat/start')
+session_id = response.json()['session_id']
+
+# Get all chat sessions
+response = requests.get('http://localhost:5300/api/chat/sessions')
+sessions = response.json()['sessions']
+
+# Get chat history
+response = requests.get(f'http://localhost:5300/api/chat/history/{session_id}')
+history = response.json()['history']
 ```
 
 ## 🛡️ Production Deployment

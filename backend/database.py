@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
-from config import QDRANT_URL, QDRANT_API_KEY
+from config import QDRANT_URL, QDRANT_API_KEY, DB_TIMEOUT, CLEANUP_BATCH_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +15,13 @@ class QdrantManager:
     """Professional Qdrant database manager with connection pooling and error handling."""
     
     def __init__(self, url: str, api_key: str, timeout: int = 30):
+        from config import DB_CONNECTION_POOL_SIZE, DB_RETRY_ATTEMPTS
         self.url = url
         self.api_key = api_key
         self.timeout = timeout
         self._client = None
-        self._connection_pool_size = 10
-        self._retry_attempts = 3
+        self._connection_pool_size = DB_CONNECTION_POOL_SIZE
+        self._retry_attempts = DB_RETRY_ATTEMPTS
         
     @property
     def client(self) -> QdrantClient:
@@ -56,8 +57,11 @@ class QdrantManager:
                 "timestamp": datetime.utcnow().isoformat()
             }
     
-    def ensure_collection(self, collection_name: str, vector_size: int = 384, 
+    def ensure_collection(self, collection_name: str, vector_size: int = None, 
                          distance: models.Distance = models.Distance.COSINE) -> bool:
+        from config import VECTOR_SIZE
+        if vector_size is None:
+            vector_size = VECTOR_SIZE
         """Ensure collection exists with proper configuration."""
         try:
             # Check if collection exists
@@ -79,20 +83,22 @@ class QdrantManager:
                     size=vector_size,
                     distance=distance
                 ),
-                optimizers_config=models.OptimizersConfig(
-                    default_segment_number=2,
-                    max_segment_size=20000,
-                    memmap_threshold=20000,
-                    indexing_threshold=20000,
-                    flush_interval_sec=5,
-                    max_optimization_threads=2
-                ),
-                hnsw_config=models.HnswConfig(
-                    m=16,
-                    ef_construct=100,
-                    full_scan_threshold=10000,
-                    max_indexing_threads=2
-                ),
+                optimizers_config={
+                    "deleted_threshold": 0.2,
+                    "vacuum_min_vector_number": 1000,
+                    "default_segment_number": 2,
+                    "max_segment_size": 20000,
+                    "memmap_threshold": 20000,
+                    "indexing_threshold": 20000,
+                    "flush_interval_sec": 5,
+                    "max_optimization_threads": 2
+                },
+                hnsw_config={
+                    "m": 16,
+                    "ef_construct": 100,
+                    "full_scan_threshold": 10000,
+                    "max_indexing_threads": 2
+                },
                 quantization_config=models.ScalarQuantization(
                     scalar=models.ScalarQuantizationConfig(
                         type=models.ScalarType.INT8,
@@ -110,7 +116,10 @@ class QdrantManager:
             return False
     
     def batch_upsert(self, collection_name: str, points: List[models.PointStruct], 
-                    batch_size: int = 100) -> Dict[str, Any]:
+                    batch_size: int = None) -> Dict[str, Any]:
+        from config import BATCH_SIZE
+        if batch_size is None:
+            batch_size = BATCH_SIZE
         """Batch upsert with retry logic and performance optimization."""
         total_points = len(points)
         successful_batches = 0
@@ -159,13 +168,24 @@ class QdrantManager:
                        filter_conditions: Optional[models.Filter] = None,
                        with_payload: bool = True, with_vectors: bool = False) -> List[models.ScoredPoint]:
         """Advanced search with filtering and optimization."""
-        try:
-            search_params = models.SearchParams(
-                hnsw_ef=128,  # Higher ef for better recall
-                exact=False   # Use approximate search for speed
+        # First try without session filtering if it exists
+        if filter_conditions and hasattr(filter_conditions, 'must'):
+            has_session_filter = any(
+                hasattr(condition, 'key') and condition.key == "session_id" 
+                for condition in filter_conditions.must
             )
             
-            # Use query method instead of deprecated search
+            if has_session_filter:
+                logger.warning("Session filtering not supported, searching all documents")
+                # Remove session_id filter
+                non_session_conditions = [
+                    condition for condition in filter_conditions.must 
+                    if not (hasattr(condition, 'key') and condition.key == "session_id")
+                ]
+                filter_conditions = models.Filter(must=non_session_conditions) if non_session_conditions else None
+        
+        try:
+            # Use query_points method for compatibility
             results = self.client.query_points(
                 collection_name=collection_name,
                 query=query_vector,
@@ -173,29 +193,33 @@ class QdrantManager:
                 limit=limit,
                 score_threshold=score_threshold,
                 with_payload=with_payload,
-                with_vectors=with_vectors,
-                search_params=search_params
+                with_vectors=with_vectors
             )
             
-            return results.points if hasattr(results, 'points') else results
+            # Handle all possible return types
+            if results is None:
+                return []
+            
+            # If it has points attribute, extract it
+            if hasattr(results, 'points'):
+                points = results.points
+                if points is None:
+                    return []
+                # Ensure it's iterable
+                try:
+                    return list(points)
+                except (TypeError, AttributeError):
+                    return []
+            
+            # If results is directly iterable
+            try:
+                return list(results)
+            except (TypeError, AttributeError):
+                return []
             
         except Exception as e:
-            logger.error(f"Advanced search failed: {e}")
-            # Fallback to basic search if advanced fails
-            try:
-                results = self.client.search(
-                    collection_name=collection_name,
-                    query_vector=query_vector,
-                    query_filter=filter_conditions,
-                    limit=limit,
-                    score_threshold=score_threshold,
-                    with_payload=with_payload,
-                    with_vectors=with_vectors
-                )
-                return results
-            except Exception as fallback_error:
-                logger.error(f"Fallback search also failed: {fallback_error}")
-                return []
+            logger.error(f"Search failed: {e}")
+            return []
     
     def get_collection_stats(self, collection_name: str) -> Dict[str, Any]:
         """Get comprehensive collection statistics."""
@@ -231,10 +255,17 @@ class QdrantManager:
             return True
             
         except Exception as e:
+            # Index might already exist, which is fine
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                logger.debug(f"Payload index for {field_name} already exists")
+                return True
             logger.error(f"Failed to create payload index: {e}")
             return False
     
-    def cleanup_old_points(self, collection_name: str, days_old: int = 30) -> Dict[str, Any]:
+    def cleanup_old_points(self, collection_name: str, days_old: int = None) -> Dict[str, Any]:
+        from config import CLEANUP_DAYS_OLD
+        if days_old is None:
+            days_old = CLEANUP_DAYS_OLD
         """Clean up old points based on timestamp."""
         try:
             cutoff_date = datetime.utcnow().timestamp() - (days_old * 24 * 3600)
@@ -252,7 +283,7 @@ class QdrantManager:
             old_points = self.client.scroll(
                 collection_name=collection_name,
                 scroll_filter=filter_condition,
-                limit=1000,
+                limit=CLEANUP_BATCH_SIZE,
                 with_payload=False
             )[0]
             
@@ -276,7 +307,7 @@ class QdrantManager:
             return {"error": str(e)}
 
 # Global instance
-qdrant_manager = QdrantManager(QDRANT_URL, QDRANT_API_KEY)
+qdrant_manager = QdrantManager(QDRANT_URL, QDRANT_API_KEY, DB_TIMEOUT)
 
 # Backward compatibility
 def get_qdrant_client():

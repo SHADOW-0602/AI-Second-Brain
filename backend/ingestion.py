@@ -14,7 +14,10 @@ from pathlib import Path
 HTML_EXT = '.html'
 
 class DocumentProcessor:
-    def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
+    def __init__(self, model_name: str = None):
+        from config import EMBEDDING_MODEL
+        if model_name is None:
+            model_name = EMBEDDING_MODEL
         self.model = SentenceTransformer(model_name)
         self.supported_formats = {'.txt', '.md', '.pdf', '.docx', '.csv', '.json', '.py', '.js', HTML_EXT, '.xml'}
         self.model = SentenceTransformer(model_name)
@@ -23,7 +26,8 @@ class DocumentProcessor:
     def get_embedding(self, text: str) -> List[float]:
         """Generate embeddings with preprocessing."""
         if not text or not text.strip():
-            return [0.0] * 384
+            from config import VECTOR_SIZE
+            return [0.0] * VECTOR_SIZE
         
         # Clean and normalize text
         cleaned_text = self._clean_text(text)
@@ -37,7 +41,14 @@ class DocumentProcessor:
         text = re.sub(r'[^\w\s.,!?;:()-]', '', text)
         return text.strip()
     
-    def chunk_text(self, text: str, chunk_size: int = 512, overlap: int = 64, min_chunk_size: int = 50) -> List[Dict]:
+    def chunk_text(self, text: str, chunk_size: int = None, overlap: int = None, min_chunk_size: int = None) -> List[Dict]:
+        from config import CHUNK_SIZE, CHUNK_OVERLAP, MIN_CHUNK_SIZE
+        if chunk_size is None:
+            chunk_size = CHUNK_SIZE
+        if overlap is None:
+            overlap = CHUNK_OVERLAP
+        if min_chunk_size is None:
+            min_chunk_size = MIN_CHUNK_SIZE
         """Advanced text chunking with metadata."""
         if not text or len(text) < min_chunk_size:
             return []

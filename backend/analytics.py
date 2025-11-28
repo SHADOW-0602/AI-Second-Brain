@@ -12,9 +12,10 @@ class AnalyticsTracker:
     """Analytics tracker using Qdrant for storage instead of SQLite."""
     
     def __init__(self):
-        self.search_collection = "analytics_search_history"
-        self.file_access_collection = "analytics_file_access"
-        self.metrics_collection = "analytics_usage_metrics"
+        from config import ANALYTICS_SEARCH_COLLECTION, ANALYTICS_FILE_ACCESS_COLLECTION, ANALYTICS_METRICS_COLLECTION
+        self.search_collection = ANALYTICS_SEARCH_COLLECTION
+        self.file_access_collection = ANALYTICS_FILE_ACCESS_COLLECTION
+        self.metrics_collection = ANALYTICS_METRICS_COLLECTION
         self.init_collections()
     
     def init_collections(self):
