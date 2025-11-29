@@ -220,6 +220,7 @@ async def generate_note(request: GenerateNoteRequest):
             "source_filename": request.filename,
             "filename": note_filename,
             "type": "generated_note",
+            "file_type": "generated_note", # Explicitly set for system.py filtering
             "r2_url": r2_url,
             "timestamp": time.time(),
             "session_id": request.session_id  # Keep session_id for UI filtering

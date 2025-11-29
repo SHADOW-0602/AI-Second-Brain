@@ -149,8 +149,9 @@ async def get_memory_context_info(query: str, session_id: str) -> str:
         query_vector = get_embedding(query)
         
         # Search for relevant memories and documents
+        from config import QDRANT_COLLECTION_NAME
         memory_results = qdrant_manager.advanced_search(
-            collection_name=os.getenv('QDRANT_COLLECTION_NAME', 'second_brain'),
+            collection_name=QDRANT_COLLECTION_NAME,
             query_vector=query_vector,
             limit=3,
             score_threshold=0.6,

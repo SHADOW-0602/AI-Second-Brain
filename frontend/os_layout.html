@@ -130,6 +130,12 @@
         }
 
         async function uploadFiles(files) {
+            const uploadSpinner = document.getElementById('upload-spinner');
+            const uploadText = document.getElementById('upload-text');
+
+            if (uploadSpinner) uploadSpinner.style.display = 'inline';
+            if (uploadText) uploadText.style.display = 'none';
+
             for (let file of files) {
                 const formData = new FormData();
                 formData.append('file', file);
@@ -154,8 +160,10 @@
                                     Uploaded: ${new Date().toLocaleString()} | Chunks: ${result.chunks_count} | Size: ${result.total_chars} chars
                                 </div>
                                 <div>${result.metadata.preview_text.replace(/\n/g, '<br>')}</div>
+                                <div>${result.metadata.preview_text.replace(/\n/g, '<br>')}</div>
                             `;
                             // document.getElementById('generate-notes-btn').style.display = 'inline-block';
+                            activeSourceFilename = file.name; // Set active file context
                         }
 
                         loadMemoryFiles();
@@ -171,6 +179,9 @@
                     console.error('Upload error:', error);
                 }
             }
+
+            if (uploadSpinner) uploadSpinner.style.display = 'none';
+            if (uploadText) uploadText.style.display = 'inline';
         }
 
         function attachFileUploadListener() {
@@ -270,6 +281,12 @@
                 addMessage(message, 'user');
                 chatInput.value = '';
 
+                // Loading state
+                const sendBtn = document.getElementById('send-btn');
+                const originalBtnText = sendBtn.innerHTML;
+                sendBtn.innerHTML = '...';
+                sendBtn.disabled = true;
+
                 try {
                     const response = await fetch('/api/chat/message', {
                         method: 'POST',
@@ -289,6 +306,12 @@
                     }
                 } catch (error) {
                     addMessage('Error: ' + error.message, 'ai');
+                } finally {
+                    // Restore button state
+                    sendBtn.innerHTML = originalBtnText;
+                    sendBtn.disabled = false;
+                    // Focus back on input
+                    chatInput.focus();
                 }
             }
 
@@ -365,7 +388,10 @@
                         <div class="sidebar-content" id="files-content">
                             <div style="padding: 10px; font-weight: bold; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">
                                 <span>Smart Notes</span>
-                                <button onclick="generateSessionSummary()" style="background: var(--accent); border: none; border-radius: 4px; padding: 2px 6px; color: white; cursor: pointer; font-size: 0.8em;" title="Generate summary of all files">Summary</button>
+                                <div style="display: flex; align-items: center; gap: 5px;">
+                                    <span id="summary-spinner" style="display: none; color: var(--accent); font-size: 0.8em;">⟳ Generating...</span>
+                                    <button onclick="generateSessionSummary()" style="background: var(--accent); border: none; border-radius: 4px; padding: 2px 6px; color: white; cursor: pointer; font-size: 0.8em;" title="Generate summary of all files">Summary</button>
+                                </div>
                             </div>
                             <div id="smart-notes-list" style="margin-bottom: 20px;"></div>
                         </div>
@@ -406,6 +432,9 @@
         async function generateSessionSummary() {
             if (!confirm('Generate a summary of all files in this session?')) return;
 
+            const spinner = document.getElementById('summary-spinner');
+            if (spinner) spinner.style.display = 'block';
+
             try {
                 const response = await fetch('/api/notes/generate', {
                     method: 'POST',
@@ -419,6 +448,7 @@
                 });
 
                 if (response.ok) {
+                    const data = await response.json();
                     alert('Session summary generated successfully!');
                     loadSmartNotes();
                 } else {
@@ -426,6 +456,8 @@
                 }
             } catch (error) {
                 alert('Error generating summary: ' + error.message);
+            } finally {
+                if (spinner) spinner.style.display = 'none';
             }
         }
 
@@ -569,7 +601,8 @@
         </div>
         <div class="upload-btn" onclick="document.getElementById('file-upload').click()" 
              ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
-            <span>Upload Files (Multiple)</span>
+            <span id="upload-text">Upload Files (Multiple)</span>
+            <span id="upload-spinner" style="display: none;">⟳ Uploading...</span>
             <input type="file" id="file-upload" style="display: none" multiple>
         </div>
         <div class="sidebar-content" id="memory-files-list">
@@ -699,6 +732,12 @@
             const docViewer = document.getElementById('doc-viewer');
             // Only use visible text if we don't have an active file (fallback)
             const visibleText = docViewer.textContent || docViewer.innerText;
+
+            // Prevent generating notes from upload confirmation metadata
+            if (!activeSourceFilename && visibleText.includes("Document uploaded:") && visibleText.includes("Chunks:")) {
+                alert('Please open the document from the Files list to generate smart notes.');
+                return;
+            }
 
             if (!activeSourceFilename && (!visibleText || visibleText.length < 50)) {
                 alert('Please open a document first to generate smart notes');

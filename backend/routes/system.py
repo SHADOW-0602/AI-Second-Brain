@@ -62,7 +62,8 @@ async def list_uploaded_files(session_id: str = None):
         for point in scroll_result[0]:
             filename = point.payload.get("filename")
             file_type = point.payload.get("file_type")
-            if filename and file_type != "memory" and file_type != "generated_note":
+            type_val = point.payload.get("type")
+            if filename and file_type != "memory" and file_type != "generated_note" and type_val != "generated_note":
                 if filename not in files:
                     files[filename] = {
                         "filename": filename,
