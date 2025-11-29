@@ -61,7 +61,8 @@ async def list_uploaded_files(session_id: str = None):
         files = {}
         for point in scroll_result[0]:
             filename = point.payload.get("filename")
-            if filename and point.payload.get("file_type") != "memory":
+            file_type = point.payload.get("file_type")
+            if filename and file_type != "memory" and file_type != "generated_note":
                 if filename not in files:
                     files[filename] = {
                         "filename": filename,
@@ -169,9 +170,17 @@ async def get_file_url(filename: str, expiration: int = 3600):
         )
         
         if not scroll_result[0]:
-            raise HTTPException(status_code=404, detail="File not found")
+            print(f"DEBUG: File not found in Qdrant: {filename}")
+            # Try searching with 'note_' prefix or partial match if it's a note
+            if "note_" in filename:
+                 print(f"DEBUG: Attempting loose search for note: {filename}")
+            raise HTTPException(status_code=404, detail=f"File not found: {filename}")
         
         file_url = scroll_result[0][0].payload.get("file_url")
+        if not file_url:
+            # Fallback for smart notes which use r2_url
+            file_url = scroll_result[0][0].payload.get("r2_url")
+            
         if not file_url:
             raise HTTPException(status_code=404, detail="File URL not found")
         

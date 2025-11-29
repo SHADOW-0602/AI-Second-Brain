@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Any
 import asyncio
 import time
 import logging
+import os
 
 # Import Clients
 from groq_client import groq_client
@@ -308,10 +309,13 @@ async def run_parallel_workflow(query: str, background_tasks: BackgroundTasks, c
                 # Let's try strict session first. If it fails, maybe fallback? 
                 # No, strict session is better. If it fails, it means the frontend state is weird.
                 
+                # Log the filter being used
+                logger.info(f"Fetching active doc: {active_document_filename} for session: {session_id}")
+                
                 doc_results = qdrant_manager.client.scroll(
                     collection_name=os.getenv('QDRANT_COLLECTION_NAME', 'second_brain'),
                     scroll_filter=Filter(must=must_conditions, must_not=must_not_conditions),
-                    limit=100, # Fetch enough chunks
+                    limit=1000, # Increased limit to fetch more chunks
                     with_payload=True,
                     with_vectors=False
                 )
@@ -319,9 +323,21 @@ async def run_parallel_workflow(query: str, background_tasks: BackgroundTasks, c
                 if doc_results and doc_results[0]:
                     chunks = sorted(doc_results[0], key=lambda x: x.payload.get('chunk_index', 0))
                     active_document_text = "\n".join([chunk.payload.get('text', '') for chunk in chunks])
-                    logger.info(f"Fetched active document {active_document_filename}: {len(active_document_text)} chars")
+                    logger.info(f"Fetched active document {active_document_filename}: {len(active_document_text)} chars, {len(chunks)} chunks")
                 else:
-                    logger.warning(f"Active document {active_document_filename} not found in session {session_id}")
+                    logger.warning(f"Active document {active_document_filename} NOT FOUND in session {session_id}")
+                    # Fallback: Try searching without session_id (just by filename) to debug if it exists at all
+                    fallback_results = qdrant_manager.client.scroll(
+                        collection_name=os.getenv('QDRANT_COLLECTION_NAME', 'second_brain'),
+                        scroll_filter=Filter(must=[FieldCondition(key="filename", match=MatchValue(value=active_document_filename))]),
+                        limit=1,
+                        with_payload=True
+                    )
+                    if fallback_results and fallback_results[0]:
+                        found_session = fallback_results[0][0].payload.get('session_id')
+                        logger.warning(f"File exists but in session: {found_session}")
+                    else:
+                        logger.warning("File does not exist in Qdrant at all.")
                     
             except Exception as e:
                 logger.error(f"Failed to fetch active document: {e}")
@@ -332,7 +348,6 @@ async def run_parallel_workflow(query: str, background_tasks: BackgroundTasks, c
         query_vector = get_embedding(search_query)
         from qdrant_client.http.models import Filter, FieldCondition, MatchValue, MatchAny
         
-        import os
         from config import QDRANT_SCORE_THRESHOLD
         score_threshold = QDRANT_SCORE_THRESHOLD
         collection_name = os.getenv('QDRANT_COLLECTION_NAME', 'second_brain')
@@ -355,6 +370,10 @@ async def run_parallel_workflow(query: str, background_tasks: BackgroundTasks, c
                     FieldCondition(
                         key="excluded",
                         match=MatchValue(value=True)
+                    ),
+                    FieldCondition(
+                        key="file_type",
+                        match=MatchValue(value="generated_note")
                     )
                 ]
             )

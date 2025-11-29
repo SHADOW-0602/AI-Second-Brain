@@ -47,10 +47,7 @@
         <!-- 3. Main Workspace (Document Viewer) -->
         <div class="workspace" id="workspace">
             <div class="workspace-header" style="display: flex; justify-content: flex-end; padding: 10px 40px;">
-                <div>
-                    <button id="generate-notes-btn" class="action-btn" style="display: none;">Generate Smart
-                        Notes</button>
-                </div>
+                <!-- Header actions if needed -->
             </div>
 
             <div class="doc-container" id="doc-viewer">
@@ -158,7 +155,7 @@
                                 </div>
                                 <div>${result.metadata.preview_text.replace(/\n/g, '<br>')}</div>
                             `;
-                            document.getElementById('generate-notes-btn').style.display = 'inline-block';
+                            // document.getElementById('generate-notes-btn').style.display = 'inline-block';
                         }
 
                         loadMemoryFiles();
@@ -207,7 +204,7 @@
             `;
 
             // Hide generate notes button
-            document.getElementById('generate-notes-btn').style.display = 'none';
+            // document.getElementById('generate-notes-btn').style.display = 'none';
 
             // Reload memory files for new session
             loadMemoryFiles();
@@ -694,7 +691,7 @@
         }
 
         // Generate smart notes functionality
-        document.getElementById('generate-notes-btn').addEventListener('click', generateSmartNotes);
+        // document.getElementById('generate-notes-btn').addEventListener('click', generateSmartNotes);
 
         let activeSourceFilename = null;
 
@@ -818,7 +815,7 @@
                         `;
 
                         // Show generate notes button
-                        document.getElementById('generate-notes-btn').style.display = 'inline-block';
+                        // document.getElementById('generate-notes-btn').style.display = 'inline-block';
                     }
                 }
             } catch (error) {
