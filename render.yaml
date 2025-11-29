@@ -8,16 +8,29 @@ services:
     healthCheckPath: /health
     autoDeploy: false
     envVars:
+      # System Configuration
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: SERVER_HOST
         value: 0.0.0.0
       - key: SERVER_PORT
         value: 10000
+      - key: TF_ENABLE_ONEDNN_OPTS
+        value: 0
+      - key: HF_HUB_DISABLE_SYMLINKS_WARNING
+        value: 1
+      
+      # Required: Qdrant Database
       - key: QDRANT_URL
         sync: false
       - key: QDRANT_API_KEY
         sync: false
+      - key: QDRANT_COLLECTION_NAME
+        value: second_brain
+      - key: QDRANT_SCORE_THRESHOLD
+        value: 0.6
+      
+      # Required: AI API Keys
       - key: GROQ_API_KEY
         sync: false
       - key: GEMINI_API_KEY
@@ -26,13 +39,57 @@ services:
         sync: false
       - key: COHERE_API_KEY
         sync: false
+      
+      # Optional: Cloudflare R2 Storage
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      
+      # Optional: LangSmith Tracing
       - key: LANGCHAIN_API_KEY
         sync: false
       - key: LANGCHAIN_TRACING_V2
         value: true
       - key: LANGCHAIN_PROJECT
         value: livingos-ai
-      - key: TF_ENABLE_ONEDNN_OPTS
-        value: 0
-      - key: HF_HUB_DISABLE_SYMLINKS_WARNING
-        value: 1
+      
+      # Processing Configuration
+      - key: EMBEDDING_MODEL
+        value: all-MiniLM-L6-v2
+      - key: CHUNK_SIZE
+        value: 512
+      - key: CHUNK_OVERLAP
+        value: 64
+      - key: MIN_CHUNK_SIZE
+        value: 50
+      - key: BATCH_SIZE
+        value: 50
+      - key: VECTOR_SIZE
+        value: 384
+      
+      # Database Configuration
+      - key: DB_TIMEOUT
+        value: 30
+      - key: DB_RETRY_ATTEMPTS
+        value: 3
+      - key: DB_CONNECTION_POOL_SIZE
+        value: 10
+      
+      # Chat Configuration
+      - key: CHAT_HISTORY_LIMIT
+        value: 50
+      - key: CHAT_SESSIONS_LIMIT
+        value: 20
+      
+      # Model Configuration
+      - key: MISTRAL_MODEL
+        value: mistral-small-latest
+      - key: AI_PROVIDER
+        value: mistral
