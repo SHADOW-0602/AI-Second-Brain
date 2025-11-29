@@ -17,7 +17,7 @@ class CohereClient:
             logger.warning("COHERE_API_KEY not found in environment")
             self.client = None
         else:
-            self.client = cohere.Client(self.api_key)
+            self.client = cohere.Client(self.api_key, timeout=60) # Increase timeout to 60s
 
     @traceable(run_type="llm", name="cohere_chat")
     async def chat_with_context(self, query: str, context: str) -> str:

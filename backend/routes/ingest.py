@@ -21,6 +21,7 @@ try:
     qdrant_manager.create_payload_index(COLLECTION_NAME, "excluded", PayloadSchemaType.BOOL)
     qdrant_manager.create_payload_index(COLLECTION_NAME, "session_id", PayloadSchemaType.KEYWORD)
     qdrant_manager.create_payload_index(COLLECTION_NAME, "file_type", PayloadSchemaType.KEYWORD)
+    qdrant_manager.create_payload_index(COLLECTION_NAME, "chunk_index", PayloadSchemaType.INTEGER)
 except Exception as e:
     print(f"Warning: Could not ensure collection {COLLECTION_NAME}: {e}")
 

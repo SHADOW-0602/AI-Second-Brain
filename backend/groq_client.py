@@ -111,6 +111,7 @@ INSTRUCTIONS:
 Extract key FACTS, DECISIONS, or CODE SNIPPETS from the provided Q&A.
 Output ONLY a valid JSON object with a "facts" array of strings.
 Ignore conversational filler.
+Ensure all strings are properly escaped for JSON (e.g. escape quotes, backslashes, and control characters).
 Example: {"facts": ["Server port changed to 3000", "Database migration failed due to timeout"]}
 """
         
