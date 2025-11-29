@@ -2,6 +2,7 @@ import os
 import logging
 from groq import Groq
 import json
+from langsmith import traceable
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class GroqClient:
             logger.error(f"Groq model test failed: {e}")
             return False
 
+    @traceable(run_type="llm", name="groq_aggregation")
     async def aggregate_responses(self, query: str, context: str, responses: dict) -> str:
         """
         Aggregates responses from multiple models and selects/synthesizes the best answer.
@@ -97,6 +99,7 @@ INSTRUCTIONS:
             logger.error(f"Groq Aggregation Error: {e}")
             return f"Error during aggregation: {str(e)}"
 
+    @traceable(run_type="tool", name="groq_fact_extraction")
     async def extract_facts(self, query: str, answer: str) -> list:
         """
         Extracts key facts from the final answer for long-term memory.

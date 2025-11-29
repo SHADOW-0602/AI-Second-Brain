@@ -1,6 +1,7 @@
 import os
 import logging
 import cohere
+from langsmith import traceable
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ class CohereClient:
         else:
             self.client = cohere.Client(self.api_key)
 
+    @traceable(run_type="llm", name="cohere_chat")
     async def chat_with_context(self, query: str, context: str) -> str:
         if not self.client:
             return "Cohere client not initialized."
@@ -25,7 +27,7 @@ class CohereClient:
         try:
             # Cohere's Chat API
             response = self.client.chat(
-                model="command-a-vision-07-2025",
+                model="command-r-plus-08-2024", # Updated to latest stable model
                 message=query,
                 preamble="You are a helpful AI assistant. Answer the user's question based on the provided context. If the context is not relevant, answer based on your general knowledge.",
                 documents=[{"text": context[:4000]}], # Cohere RAG style

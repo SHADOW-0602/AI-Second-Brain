@@ -1,6 +1,7 @@
 from mistralai import Mistral
 import logging
 import os
+from langsmith import traceable
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ class MistralAIClient:
         else:
             self.client = Mistral(api_key=self.api_key)
     
+    @traceable(run_type="llm", name="mistral_chat")
     async def chat_with_context(self, user_message: str, context: list[str]) -> dict:
         """
         Generate AI response using Mistral with context from your documents.
@@ -73,6 +75,7 @@ Answer the user's question. If using context, cite which document chunks you're 
             logger.error(f"Mistral API error: {e}")
             return {"error": str(e)}
     
+    @traceable(run_type="llm", name="mistral_summarize")
     async def summarize_documents(self, texts: list[str]) -> dict:
         """
         Summarize multiple document chunks using Mistral.

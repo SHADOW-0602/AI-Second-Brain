@@ -1,6 +1,7 @@
 import os
 import logging
 import google.generativeai as genai
+from langsmith import traceable
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class GeminiClient:
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel(self.model_name)
 
+    @traceable(run_type="llm", name="gemini_chat")
     async def chat_with_context(self, query: str, context: str) -> str:
         if not self.model:
             return "Gemini client not initialized."
@@ -41,6 +43,7 @@ QUESTION:
             logger.error(f"Gemini API Error: {e}")
             return f"Gemini Error: {str(e)}"
 
+    @traceable(run_type="tool", name="gemini_intent_analysis")
     async def analyze_intent(self, query: str) -> dict:
         """
         Analyze user intent using a separate, fast Gemini model instance.

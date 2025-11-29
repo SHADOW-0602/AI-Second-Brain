@@ -43,15 +43,13 @@ typing-extensions==4.15.0
 numpy==2.3.4
 pillow==11.3.0
 
-# Optional: Enhanced Performance
-# accelerate==1.2.1
-# optimum==1.24.0
+accelerate==1.2.1
+optimum==1.24.0
 
-# Optional: Additional Document Formats
-# python-pptx==1.0.2
-# xlsxwriter==3.2.0
-# beautifulsoup4==4.12.3
-# lxml==6.0.2
+python-pptx==1.0.2
+xlsxwriter==3.2.0
+beautifulsoup4==4.12.3
+lxml==6.0.2
 
 # Advanced Features
 spacy>=3.7.0
@@ -72,12 +70,3 @@ langsmith>=0.0.87
 requests>=2.31.0
 jinja2>=3.1.0
 markupsafe>=2.1.0
-
-# Optional: Enhanced Performance
-# redis>=5.0.0
-# accelerate==1.2.1
-# optimum==1.24.0
-
-# Optional: Monitoring & Logging
-# prometheus-client==0.21.1
-# structlog==24.4.0

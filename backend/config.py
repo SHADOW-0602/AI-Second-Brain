@@ -18,7 +18,7 @@ QDRANT_SCORE_THRESHOLD = float(os.getenv("QDRANT_SCORE_THRESHOLD", "0.6"))
 
 # Server Configuration
 SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
-SERVER_PORT = int(os.getenv("PORT", os.getenv("SERVER_PORT", "10000")))
+SERVER_PORT = int(os.getenv("PORT", "10000"))
 
 # Processing Configuration
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
