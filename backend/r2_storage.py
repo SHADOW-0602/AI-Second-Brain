@@ -14,18 +14,34 @@ class R2StorageManager:
         self.endpoint = R2_ENDPOINT
         self.bucket_name = R2_BUCKET_NAME
         self.public_url = R2_PUBLIC_URL
+        self.client = None
+        self.enabled = False
         
-        # Initialize S3 client for R2
-        self.client = boto3.client(
-            's3',
-            endpoint_url=self.endpoint,
-            aws_access_key_id=R2_ACCESS_KEY_ID,
-            aws_secret_access_key=R2_SECRET_ACCESS_KEY,
-            region_name='auto'
-        )
+        # Only initialize if all required config is present
+        if all([R2_ENDPOINT, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY]):
+            try:
+                # Initialize S3 client for R2
+                self.client = boto3.client(
+                    's3',
+                    endpoint_url=self.endpoint,
+                    aws_access_key_id=R2_ACCESS_KEY_ID,
+                    aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+                    region_name='auto'
+                )
+                self.enabled = True
+                logger.info("R2 storage initialized successfully")
+            except Exception as e:
+                logger.warning(f"R2 storage initialization failed: {e}")
+                self.enabled = False
+        else:
+            logger.info("R2 storage disabled - missing configuration")
     
     def upload_file(self, file_content: bytes, filename: str, content_hash: str) -> Optional[str]:
         """Upload file to R2 and return public URL."""
+        if not self.enabled or not self.client:
+            logger.debug("R2 storage not available, skipping upload")
+            return None
+            
         try:
             # Use hash-based path for deduplication
             object_key = f"{content_hash}/{filename}"
@@ -48,6 +64,10 @@ class R2StorageManager:
     
     def download_file(self, object_key: str) -> Optional[bytes]:
         """Download file from R2."""
+        if not self.enabled or not self.client:
+            logger.debug("R2 storage not available, cannot download")
+            return None
+            
         try:
             response = self.client.get_object(
                 Bucket=self.bucket_name,
@@ -61,6 +81,10 @@ class R2StorageManager:
     
     def delete_file(self, object_key: str) -> bool:
         """Delete file from R2."""
+        if not self.enabled or not self.client:
+            logger.debug("R2 storage not available, cannot delete")
+            return False
+            
         try:
             self.client.delete_object(
                 Bucket=self.bucket_name,
@@ -75,6 +99,10 @@ class R2StorageManager:
     
     def generate_presigned_url(self, object_key: str, expiration: int = 3600) -> Optional[str]:
         """Generate presigned URL for temporary access."""
+        if not self.enabled or not self.client:
+            logger.debug("R2 storage not available, cannot generate presigned URL")
+            return None
+            
         try:
             url = self.client.generate_presigned_url(
                 'get_object',

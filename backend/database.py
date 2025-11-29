@@ -39,13 +39,10 @@ class QdrantManager:
     def health_check(self) -> Dict[str, Any]:
         """Check Qdrant cluster health."""
         try:
-            cluster_info = self.client.get_cluster_info()
             collections = self.client.get_collections()
             
             return {
                 "status": "healthy",
-                "cluster_status": cluster_info.status,
-                "peer_count": len(cluster_info.peers),
                 "collections_count": len(collections.collections),
                 "timestamp": datetime.utcnow().isoformat()
             }
@@ -168,21 +165,21 @@ class QdrantManager:
                        filter_conditions: Optional[models.Filter] = None,
                        with_payload: bool = True, with_vectors: bool = False) -> List[models.ScoredPoint]:
         """Advanced search with filtering and optimization."""
-        # First try without session filtering if it exists
-        if filter_conditions and hasattr(filter_conditions, 'must'):
-            has_session_filter = any(
-                hasattr(condition, 'key') and condition.key == "session_id" 
-                for condition in filter_conditions.must
-            )
-            
-            if has_session_filter:
-                logger.warning("Session filtering not supported, searching all documents")
-                # Remove session_id filter
-                non_session_conditions = [
-                    condition for condition in filter_conditions.must 
-                    if not (hasattr(condition, 'key') and condition.key == "session_id")
-                ]
-                filter_conditions = models.Filter(must=non_session_conditions) if non_session_conditions else None
+        # Session filtering is now supported
+        # if filter_conditions and hasattr(filter_conditions, 'must'):
+        #     has_session_filter = any(
+        #         hasattr(condition, 'key') and condition.key == "session_id" 
+        #         for condition in filter_conditions.must
+        #     )
+        #     
+        #     if has_session_filter:
+        #         logger.warning("Session filtering not supported, searching all documents")
+        #         # Remove session_id filter
+        #         non_session_conditions = [
+        #             condition for condition in filter_conditions.must 
+        #             if not (hasattr(condition, 'key') and condition.key == "session_id")
+        #         ]
+        #         filter_conditions = models.Filter(must=non_session_conditions) if non_session_conditions else None
         
         try:
             # Use query_points method for compatibility

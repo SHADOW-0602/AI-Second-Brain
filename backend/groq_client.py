@@ -7,15 +7,49 @@ logger = logging.getLogger(__name__)
 
 class GroqClient:
     def __init__(self):
+        # Load environment variables
+        from dotenv import load_dotenv
+        load_dotenv()
+        
         self.api_key = os.getenv("GROQ_API_KEY")
-        self.aggregator_model = "llama-3.3-70b-versatile"
-        self.extractor_model = "llama-3.1-8b-instant"
         
         if not self.api_key:
             logger.warning("GROQ_API_KEY not found in environment")
             self.client = None
         else:
             self.client = Groq(api_key=self.api_key)
+            self._initialize_models()
+
+    def _initialize_models(self):
+        """Initialize with currently working models."""
+        # Use the models we confirmed are working
+        self.aggregator_model = "llama-3.3-70b-versatile"  # Latest 70B model
+        self.extractor_model = "llama-3.1-8b-instant"      # Fast 8B model
+        
+        logger.info(f"Using models: {self.aggregator_model}, {self.extractor_model}")
+        
+        # Test the model on initialization
+        self.test_model()
+    
+    def test_model(self):
+        """Test if the model is working."""
+        if not self.client:
+            logger.error("Groq client not initialized")
+            return False
+            
+        try:
+            completion = self.client.chat.completions.create(
+                messages=[{"role": "user", "content": "Say 'Hello' in one word."}],
+                model=self.extractor_model,
+                temperature=0.1,
+                max_tokens=10
+            )
+            response = completion.choices[0].message.content
+            logger.info(f"Groq model test successful: {response}")
+            return True
+        except Exception as e:
+            logger.error(f"Groq model test failed: {e}")
+            return False
 
     async def aggregate_responses(self, query: str, context: str, responses: dict) -> str:
         """

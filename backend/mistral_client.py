@@ -6,6 +6,10 @@ logger = logging.getLogger(__name__)
 
 class MistralAIClient:
     def __init__(self):
+        # Load environment variables
+        from dotenv import load_dotenv
+        load_dotenv()
+        
         self.api_key = os.getenv("MISTRAL_API_KEY")
         self.model = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
         
@@ -38,12 +42,12 @@ class MistralAIClient:
             
             system_prompt = f"""You are an AI assistant with access to the user's personal knowledge base.
 Use the following context from their stored documents to answer their question accurately.
-If the context doesn't contain relevant information, say so clearly.
+If the context doesn't contain relevant information, answer based on your general knowledge.
 
 CONTEXT FROM USER'S DOCUMENTS:
 {context_text}
 
-Answer the user's question based on this context. Be specific and cite which document chunks you're using."""
+Answer the user's question. If using context, cite which document chunks you're using."""
 
             # Create messages for Mistral (v1.9+ API)
             messages = [

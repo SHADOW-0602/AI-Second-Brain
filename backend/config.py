@@ -17,8 +17,8 @@ QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "second_brain")
 QDRANT_SCORE_THRESHOLD = float(os.getenv("QDRANT_SCORE_THRESHOLD", "0.6"))
 
 # Server Configuration
-SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
-SERVER_PORT = int(os.getenv("SERVER_PORT", "5300"))
+SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
+SERVER_PORT = int(os.getenv("PORT", os.getenv("SERVER_PORT", "10000")))
 
 # Processing Configuration
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
@@ -41,6 +41,15 @@ ANALYTICS_METRICS_COLLECTION = os.getenv("ANALYTICS_METRICS_COLLECTION", "analyt
 # Cleanup Configuration
 CLEANUP_DAYS_OLD = int(os.getenv("CLEANUP_DAYS_OLD", "30"))
 CLEANUP_BATCH_SIZE = int(os.getenv("CLEANUP_BATCH_SIZE", "1000"))
+
+# Workflow Configuration
+WORKFLOW_WEBHOOK_URL = os.getenv("WORKFLOW_WEBHOOK_URL")
+WORKFLOW_API_KEY = os.getenv("WORKFLOW_API_KEY")
+
+# LangSmith Configuration
+LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
+LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "true")
+LANGCHAIN_PROJECT = os.getenv("LANGCHAIN_PROJECT", "ai-second-brain")
 
 if not QDRANT_URL:
     raise ValueError("QDRANT_URL is not set in .env")

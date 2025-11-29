@@ -1,25 +1,30 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
+from typing import Optional
 import uuid
 import time
 from datetime import datetime
-from database import qdrant_manager, get_qdrant_client
-from config import QDRANT_URL, QDRANT_API_KEY
-from qdrant_client.http.models import Filter, FieldCondition, MatchValue, PointStruct
+from ingestion import get_embedding
+from database import qdrant_manager
+from config import QDRANT_URL, QDRANT_API_KEY, VECTOR_SIZE
+from qdrant_client.http.models import Filter, FieldCondition, MatchValue, PointStruct, FilterSelector
 from groq_client import groq_client
 from r2_storage import r2_storage
 import json
 
 router = APIRouter()
 
-# Ensure chat_sessions collection exists (vector size 1 for dummy vector)
+# Ensure chat_sessions collection exists (vector size 384 for semantic search)
 COLLECTION_NAME = "chat_sessions"
 try:
-    qdrant_manager.ensure_collection(COLLECTION_NAME, vector_size=1)
+    qdrant_manager.ensure_collection(COLLECTION_NAME, vector_size=VECTOR_SIZE)
+    # Create payload indexes
+    from qdrant_client.http.models import PayloadSchemaType
+    qdrant_manager.create_payload_index(COLLECTION_NAME, "session_id", PayloadSchemaType.KEYWORD)
+    qdrant_manager.create_payload_index(COLLECTION_NAME, "role", PayloadSchemaType.KEYWORD)
 except Exception as e:
-    import traceback
-    traceback.print_exc()
     print(f"Warning: Could not ensure collection {COLLECTION_NAME}: {e}")
+    # Continue without failing - collection will be created on first use
 
 # Simple payload schema: session_id (str), role ("user"|"assistant"), content (str), timestamp (str)
 
@@ -36,6 +41,7 @@ class ChatMessageRequest(BaseModel):
     workflow_id: str = Field("default", description="Lamatic workflow ID if used")
     context_limit: int = Field(3, description="Number of context chunks to retrieve")
     temperature: float = Field(0.7, description="Creativity temperature")
+    active_document_filename: Optional[str] = Field(None, description="Filename of the currently viewed document")
 
 @router.post("/chat/message")
 async def chat_message(req: ChatMessageRequest, background_tasks: BackgroundTasks = None): # Add background_tasks dependency
@@ -49,11 +55,17 @@ async def chat_message(req: ChatMessageRequest, background_tasks: BackgroundTask
         "content": req.message,
         "timestamp": timestamp,
     }
-    # Qdrant requires a vector; we use a dummy zero‑vector of size 1
-    dummy_vector = [0.0]
+    
+    # Generate embedding for user message
+    try:
+        vector_user = get_embedding(req.message)
+    except Exception as e:
+        print(f"Error generating embedding for user message: {e}")
+        vector_user = [0.0] * VECTOR_SIZE
+        
     point_user = PointStruct(
         id=str(uuid.uuid4()),
-        vector=dummy_vector,
+        vector=vector_user,
         payload=payload_user,
     )
     qdrant_manager.client.upsert(COLLECTION_NAME, points=[point_user], wait=True)
@@ -65,7 +77,13 @@ async def chat_message(req: ChatMessageRequest, background_tasks: BackgroundTask
     # Always use Parallel Workflow
     from .workflow import run_parallel_workflow
     
-    workflow_res = await run_parallel_workflow(req.message, background_tasks, req.context_limit, req.session_id)
+    workflow_res = await run_parallel_workflow(
+        query=req.message, 
+        background_tasks=background_tasks, 
+        context_limit=req.context_limit, 
+        session_id=req.session_id,
+        active_document_filename=req.active_document_filename
+    )
     response_content = workflow_res.answer
 
     # Store assistant response
@@ -75,16 +93,27 @@ async def chat_message(req: ChatMessageRequest, background_tasks: BackgroundTask
         "content": response_content,
         "timestamp": datetime.utcnow().isoformat(),
     }
+    
+    # Generate embedding for assistant response
+    try:
+        vector_assistant = get_embedding(response_content)
+    except Exception as e:
+        print(f"Error generating embedding for assistant response: {e}")
+        vector_assistant = [0.0] * VECTOR_SIZE
+        
     point_assistant = PointStruct(
         id=str(uuid.uuid4()),
-        vector=dummy_vector,
+        vector=vector_assistant,
         payload=payload_assistant,
     )
     qdrant_manager.client.upsert(COLLECTION_NAME, points=[point_assistant], wait=True)
     
-    # Store conversation in R2
+    # Store conversation in R2 (optional)
     if background_tasks:
-        background_tasks.add_task(store_conversation_to_r2, req.session_id, payload_user, payload_assistant)
+        try:
+            background_tasks.add_task(store_conversation_to_r2, req.session_id, payload_user, payload_assistant)
+        except Exception as e:
+            print(f"Warning: Failed to schedule R2 storage task: {e}")
     
     # Generate chat title based on first message
     chat_title = None
@@ -112,19 +141,24 @@ async def get_chat_history(session_id: str):
             ]
         )
         # Use Qdrant query_points to get all payloads
-        # Since we use a dummy vector, we can query with a dummy vector and filter
         import os
-        history_limit = int(os.getenv('CHAT_HISTORY_LIMIT', '1000'))
+        history_limit = int(os.getenv('CHAT_HISTORY_LIMIT', '50'))
         
-        results = qdrant_manager.client.query_points(
+        # First ensure the index exists
+        try:
+            from qdrant_client.http.models import PayloadSchemaType
+            qdrant_manager.create_payload_index(COLLECTION_NAME, "session_id", PayloadSchemaType.KEYWORD)
+        except:
+            pass
+            
+        results = qdrant_manager.client.scroll(
             collection_name=COLLECTION_NAME,
-            query=[0.0], # Dummy vector for query
-            query_filter=filter_cond,
+            scroll_filter=filter_cond,
             limit=history_limit,
             with_payload=True,
             with_vectors=False,
         )
-        points = results.points if hasattr(results, 'points') else results
+        points = results[0] if isinstance(results, tuple) else results
         # Sort by timestamp
         sorted_points = sorted(points, key=lambda p: p.payload.get("timestamp", ""))
         history = [
@@ -162,7 +196,8 @@ async def generate_chat_title(session_id: str, first_message: str):
         
         # Store title in a simple collection or return it
         # For now, we'll store it as metadata in the session
-        dummy_vector = [0.0]
+        # Use zero vector for title as we don't search it semantically usually
+        dummy_vector = [0.0] * VECTOR_SIZE
         title_payload = {
             "session_id": session_id,
             "role": "system",
@@ -235,14 +270,13 @@ async def get_chat_title(session_id: str):
         import os
         title_limit = int(os.getenv('CHAT_TITLE_LIMIT', '1'))
         
-        results = qdrant_manager.client.query_points(
+        results = qdrant_manager.client.scroll(
             collection_name=COLLECTION_NAME,
-            query=[0.0],
-            query_filter=filter_cond,
+            scroll_filter=filter_cond,
             limit=title_limit,
             with_payload=True,
             with_vectors=False,
-        )
+        )[0]
         
         if results and len(results) > 0:
             content = results[0].payload.get("content", "")
@@ -255,12 +289,36 @@ async def get_chat_title(session_id: str):
     except Exception as e:
         return {"title": f"Chat {session_id[:8]}"}
 
+@router.delete("/chat/history/{session_id}")
+async def delete_chat_history(session_id: str):
+    """Delete all chat history for a specific session."""
+    try:
+        filter_cond = Filter(
+            must=[
+                FieldCondition(
+                    key="session_id",
+                    match=MatchValue(value=session_id),
+                )
+            ]
+        )
+        
+        # Delete all points with matching session_id
+        qdrant_manager.client.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=FilterSelector(filter=filter_cond)
+        )
+        
+        return {"message": f"Chat history deleted for session {session_id}"}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/chat/sessions")
 async def get_all_chat_sessions():
     """Get all chat sessions (shared across all users)."""
     try:
         import os
-        scroll_limit = int(os.getenv('CHAT_SESSIONS_LIMIT', '1000'))
+        scroll_limit = int(os.getenv('CHAT_SESSIONS_LIMIT', '20'))
         
         results = qdrant_manager.client.scroll(
             collection_name=COLLECTION_NAME,

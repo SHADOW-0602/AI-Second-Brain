@@ -6,6 +6,10 @@ logger = logging.getLogger(__name__)
 
 class CohereClient:
     def __init__(self):
+        # Load environment variables
+        from dotenv import load_dotenv
+        load_dotenv()
+        
         self.api_key = os.getenv("COHERE_API_KEY")
         
         if not self.api_key:
@@ -23,7 +27,7 @@ class CohereClient:
             response = self.client.chat(
                 model="command-a-vision-07-2025",
                 message=query,
-                preamble="You are a helpful AI assistant. Answer the user's question based on the provided context.",
+                preamble="You are a helpful AI assistant. Answer the user's question based on the provided context. If the context is not relevant, answer based on your general knowledge.",
                 documents=[{"text": context[:4000]}], # Cohere RAG style
                 temperature=0.7
             )
