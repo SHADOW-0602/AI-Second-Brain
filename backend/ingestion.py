@@ -17,12 +17,21 @@ class DocumentProcessor:
     def __init__(self, model_name: str = None):
         from config import EMBEDDING_MODEL
         if model_name is None:
-            model_name = EMBEDDING_MODEL
-        self.model = SentenceTransformer(model_name)
-        self.supported_formats = {'.txt', '.md', '.pdf', '.docx', '.csv', '.json', '.py', '.js', HTML_EXT, '.xml'}
-        self.model = SentenceTransformer(model_name)
+            self.model_name = EMBEDDING_MODEL
+        else:
+            self.model_name = model_name
+            
+        self.model = None
         self.supported_formats = {'.txt', '.md', '.pdf', '.docx', '.csv', '.json', '.py', '.js', '.html', '.xml'}
     
+    def _get_model(self):
+        """Lazy load the model."""
+        if self.model is None:
+            print(f"Loading embedding model: {self.model_name}...")
+            self.model = SentenceTransformer(self.model_name)
+            print("Embedding model loaded.")
+        return self.model
+
     def get_embedding(self, text: str) -> List[float]:
         """Generate embeddings with preprocessing."""
         if not text or not text.strip():
@@ -31,7 +40,7 @@ class DocumentProcessor:
         
         # Clean and normalize text
         cleaned_text = self._clean_text(text)
-        return self.model.encode(cleaned_text, normalize_embeddings=True).tolist()
+        return self._get_model().encode(cleaned_text, normalize_embeddings=True).tolist()
     
     def _clean_text(self, text: str) -> str:
         """Clean and normalize text for better embeddings."""
