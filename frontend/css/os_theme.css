@@ -20,6 +20,7 @@ body {
     color: var(--text-primary);
     height: 100vh;
     overflow: hidden;
+    text-size-adjust: 100%;
     -webkit-text-size-adjust: 100%;
     -ms-text-size-adjust: 100%;
 }
