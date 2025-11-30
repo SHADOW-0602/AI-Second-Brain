@@ -362,14 +362,6 @@ Every chat message automatically uses the parallel workflow:
 - [X] **Intent Analysis**: Smart query classification and optimization
 - [X] **Background Processing**: Non-blocking memory extraction
 
-### 🕰️ Upcoming
-
-- [ ] **Multi-user Authentication**: User accounts and permissions
-- [ ] **Custom Embedding Models**: Pluggable embedding providers
-- [ ] **Advanced Analytics**: Usage metrics and insights
-- [ ] **Bulk Operations**: Multi-file processing and management
-- [ ] **API Rate Limiting**: Enhanced production controls
-
 ---
 
 Built for the AI community. Create living, intelligent systems that evolve with every interaction! - By Kushagra Singh
